@@ -1,0 +1,32 @@
+{
+  "name": "retiredphysicist",
+  "interface": {
+    "displayName": "RetiredPhysicist"
+  },
+  "plugins": [
+    {
+      "name": "all-search",
+      "source": {
+        "source": "local",
+        "path": "./plugins/all-search"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "dejavu-memory",
+      "source": {
+        "source": "local",
+        "path": "./plugins/dejavu-memory"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "dejavu-memory",
+  "version": "0.1.0",
+  "description": "Long-term memory for ChatGPT and Codex backed by your own DejaVu server.",
+  "author": {
+    "name": "RetiredPhysicist",
+    "url": "https://github.com/RetiredPhysicist"
+  },
+  "homepage": "https://github.com/RetiredPhysicist/DejaVu",
+  "repository": "https://github.com/RetiredPhysicist/openai-plugins",
+  "license": "MIT",
+  "keywords": [
+    "memory",
+    "long-term-memory",
+    "knowledge-base",
+    "dejavu",
+    "mcp",
+    "notes",
+    "recall"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "DejaVu Memory",
+        "shortDescription": "Durable long-term memory backed by your own DejaVu server",
+        "longDescription": "DejaVu Memory gives ChatGPT and Codex a hierarchical, versioned memory tree. Store decisions, preferences, and reusable judgments once, then recall them with keyword or semantic search in later conversations. Memory lives on your own DejaVu server, so you keep the data.",
+        "developerName": "RetiredPhysicist",
+        "category": "Productivity",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "websiteURL": "https://github.com/RetiredPhysicist/DejaVu",
+        "privacyPolicyURL": "https://github.com/RetiredPhysicist/DejaVu",
+        "termsOfServiceURL": "https://github.com/RetiredPhysicist/DejaVu",
+        "defaultPrompt": [
+          "Remember this decision and why it matters",
+          "What do I already know about this project?"
+        ],
+        "brandColor": "#6C5CE7"
+      }
+    }
+  }
+}
