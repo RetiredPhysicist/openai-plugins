@@ -3,68 +3,65 @@
 Portable [Agent Plugins](https://agent-plugins.org/specification) for ChatGPT and Codex, published by
 [RetiredPhysicist](https://github.com/RetiredPhysicist).
 
-| Plugin | What it does |
-| --- | --- |
-| [all-search](./plugins/all-search) | Live web search, parallel queries, structured verticals, and page extraction via the AnySearch MCP gateway |
-| [dejavu-memory](./plugins/dejavu-memory) | Long-term memory on your own DejaVu server |
+| Plugin | Setup | Works in |
+| --- | --- | --- |
+| [all-search](./plugins/all-search) | None | Codex, ChatGPT |
+| [dejavu-memory](./plugins/dejavu-memory) | One config block | Codex |
 
 ## Install
 
-Add the marketplace, then install the plugins you want:
+**Codex**
 
 ```bash
 codex plugin marketplace add RetiredPhysicist/openai-plugins
-codex plugin marketplace list
+codex plugin add all-search@retiredphysicist
+codex plugin add dejavu-memory@retiredphysicist
 ```
 
-In the ChatGPT desktop app, open the Plugins Directory, choose the **RetiredPhysicist** marketplace,
-and install from there.
+**ChatGPT** — open the Plugins Directory, choose the **RetiredPhysicist** source, and install from
+there.
 
-## Configuration
+Installing is the whole setup for all-search. DejaVu needs one more step; see below.
 
-### all-search
+## all-search
 
-Works without credentials. AnySearch serves anonymous requests at a lower rate limit.
+Nothing to configure. The plugin bundles a public AnySearch endpoint that answers anonymously, so
+search works right after install at a shared rate limit.
 
-To use your own quota, set an API key in the MCP server headers:
+To use your own quota, add a key to your Codex config:
 
-```json
-{
-  "mcpServers": {
-    "anysearch": {
-      "type": "streamable-http",
-      "url": "https://api.anysearch.com/mcp",
-      "headers": { "Authorization": "Bearer as_sk_..." }
-    }
-  }
-}
+```toml
+[mcp_servers.anysearch]
+url = "https://api.anysearch.com/mcp"
+http_headers = { Authorization = "Bearer as_sk_..." }
 ```
 
-### dejavu-memory
+## dejavu-memory
 
-DejaVu is self-hosted, so the shipped `mcp.json` carries placeholder values. Point it at your own
-deployment before the plugin can reach memory:
+DejaVu runs on your own server, so this plugin needs to know where that server is. Add one block to
+`~/.codex/config.toml`:
 
-```json
-{
-  "mcpServers": {
-    "dejavu": {
-      "type": "streamable-http",
-      "url": "https://your-dejavu.example.com/mcp",
-      "headers": {
-        "CF-Access-Client-Id": "your-access-client-id",
-        "CF-Access-Client-Secret": "your-access-client-secret"
-      }
-    }
-  }
-}
+```toml
+[mcp_servers.dejavu]
+url = "https://your-dejavu.example.com/mcp"
+http_headers = { CF-Access-Client-Id = "your-client-id", CF-Access-Client-Secret = "your-client-secret" }
 ```
 
-Deploy a server first: [DejaVu](https://github.com/RetiredPhysicist/DejaVu). The header pair is only
-needed when the deployment sits behind Cloudflare Access; a server without Access needs just `url`.
+Keep the `dejavu` name: it replaces the placeholder server the plugin ships with. The header pair is
+only for deployments behind Cloudflare Access; a server without Access needs just `url`.
 
-Portable `mcp.json` does not expand environment variables, so these values are literal. Keep local
-edits out of version control.
+Set your server up first: [DejaVu](https://github.com/RetiredPhysicist/DejaVu).
+
+**Why this is a manual step.** Three constraints rule out shipping a working default:
+
+1. Each deployment has its own hostname, and the plugin format has no variable expansion for MCP
+   URLs, so a shipped URL cannot be right for everyone.
+2. Secrets would have to sit in the plugin package, which is public.
+3. ChatGPT cannot send custom API keys or service tokens at all — it only speaks OAuth 2.1. A
+   Cloudflare Access service token therefore works in Codex and not in ChatGPT.
+
+Running DejaVu behind OAuth 2.1 instead of Access would make zero-config install possible in both
+clients. That is the path to remove this step entirely.
 
 ## Layout
 
