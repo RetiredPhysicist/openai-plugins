@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<body>
+<iframe id="host" src="__EDITOR_URL__" sandbox="allow-scripts allow-same-origin" style="width:860px;height:650px;border:0"></iframe>
+<script>
+window.__messages = [];
+addEventListener("message", (event) => {
+  window.__messages.push(event.data);
+  if (!event.data?.id) return;
+  event.source.postMessage({
+    jsonrpc: "2.0",
+    id: event.data.id,
+    result: event.data.method === "ui/initialize"
+      ? { protocolVersion: "2026-01-26", hostInfo: { name: "test", version: "1" }, hostCapabilities: {}, hostContext: {} }
+      : { isError: false },
+  }, "*");
+});
+</script>
+</body>
+</html>

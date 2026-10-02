@@ -7,19 +7,40 @@ Portable [Agent Plugins](https://agent-plugins.org/specification) for ChatGPT an
 | --- | --- | --- |
 | [all-search](./plugins/all-search) | None | Codex, ChatGPT |
 | [dejavu-memory](./plugins/dejavu-memory) | One config block | Codex |
+| [markwire](./plugins/markwire) | None | Codex |
 
 ## Install
 
-**Codex**
+Requires Codex with plugin support and Node.js available as `node` on your `PATH`.
+
+### GitHub
+
+Share this repository link:
+
+```text
+https://github.com/RetiredPhysicist/openai-plugins
+```
+
+Install any plugin from it:
 
 ```bash
 codex plugin marketplace add RetiredPhysicist/openai-plugins
-codex plugin add all-search@retiredphysicist
-codex plugin add dejavu-memory@retiredphysicist
+codex plugin add markwire@retiredphysicist
+```
+
+Replace `markwire` with `all-search` or `dejavu-memory` to install the others.
+
+### Local checkout
+
+For a copy you already have on disk:
+
+```bash
+codex plugin marketplace add /absolute/path/to/openai-plugins
+codex plugin add markwire@retiredphysicist
 ```
 
 **ChatGPT** — open the Plugins Directory, choose the **RetiredPhysicist** source, and install from
-there.
+there. MarkWire is local-only, so its editor is available in Codex, not ChatGPT.
 
 Installing is the whole setup for all-search. DejaVu needs one more step; see below.
 
@@ -63,10 +84,28 @@ Set your server up first: [DejaVu](https://github.com/RetiredPhysicist/DejaVu).
 Running DejaVu behind OAuth 2.1 instead of Access would make zero-config install possible in both
 clients. That is the path to remove this step entirely.
 
+## markwire
+
+Nothing to configure and no remote service. Ask for a wireframe or call `open_wireframe`; MarkWire
+ships a local stdio MCP server and a self-contained editor bundle.
+
+The editor supports select, text, box, line, arrow, pencil, eraser, button, input, card, table,
+modal, dropdown, toggle, tabs, layers, properties, undo, redo, clear, grid toggle, dark mode, canvas
+sizes, and copy Markdown.
+
+MarkWire also registers MCP App entrypoints, so Codex can surface it in the sidebar without a model
+call: `thread` opens it as a content tab beside the current conversation, and `global` opens it
+fullscreen from the primary sidebar.
+
+MarkWire is an independent implementation inspired by the product idea of
+[Mockdown](https://github.com/bbssppllvv/Mockdown). It does not include Mockdown source code.
+
+Toolbar icons are inlined from [Phosphor Icons](https://phosphoricons.com) (MIT).
+
 ## Layout
 
 Each plugin follows the v1.0.0 package model: a root `plugin.json` manifest, skills under `skills/`,
-an `mcp.json` for remote MCP servers, and OpenAI-specific metadata under `extensions.com.openai`.
+an `mcp.json` for bundled MCP servers, and OpenAI-specific metadata under `extensions.com.openai`.
 
 ```text
 openai-plugins/
@@ -76,10 +115,19 @@ openai-plugins/
     │   ├── plugin.json
     │   ├── mcp.json
     │   └── skills/research/SKILL.md
-    └── dejavu-memory/
+    ├── dejavu-memory/
+    │   ├── plugin.json
+    │   ├── mcp.json
+    │   └── skills/remember/SKILL.md
+    └── markwire/
         ├── plugin.json
         ├── mcp.json
-        └── skills/remember/SKILL.md
+        ├── assets/
+        ├── server/
+        │   ├── server.mjs
+        │   └── src.mjs
+        ├── skills/wireframe/SKILL.md
+        └── ui/
 ```
 
 ## License
