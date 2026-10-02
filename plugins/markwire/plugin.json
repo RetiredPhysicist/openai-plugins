@@ -1,0 +1,46 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "markwire",
+  "version": "1.0.0",
+  "description": "Draw and edit ASCII wireframes inside Codex with a local editor.",
+  "author": {
+    "name": "RetiredPhysicist",
+    "url": "https://github.com/RetiredPhysicist"
+  },
+  "homepage": "https://github.com/RetiredPhysicist/openai-plugins",
+  "repository": "https://github.com/RetiredPhysicist/openai-plugins",
+  "license": "MIT",
+  "keywords": [
+    "ascii",
+    "wireframe",
+    "diagram",
+    "mockup",
+    "ui",
+    "terminal",
+    "mcp"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "MarkWire",
+        "shortDescription": "Draw ASCII wireframes locally",
+        "longDescription": "MarkWire opens an interactive ASCII wireframe editor for boxes, dividers, labels, UI components, and layout sketches. Draw on the character grid or ask the model to render a layout from shapes, then copy the result as Markdown. It is a drawing surface with one output, Markdown, and runs entirely from the bundled local server.",
+        "developerName": "RetiredPhysicist",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Read"
+        ],
+        "websiteURL": "https://github.com/RetiredPhysicist/openai-plugins",
+        "privacyPolicyURL": "https://github.com/RetiredPhysicist/openai-plugins",
+        "termsOfServiceURL": "https://github.com/RetiredPhysicist/openai-plugins",
+        "defaultPrompt": [
+          "Sketch a login page as an ASCII wireframe",
+          "Open MarkWire so I can draw a layout"
+        ],
+        "brandColor": "#2F6F4E",
+        "composerIcon": "./assets/icon.svg",
+        "logo": "./assets/logo.svg"
+      }
+    }
+  }
+}

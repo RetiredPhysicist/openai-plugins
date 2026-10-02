@@ -1,0 +1,2160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarkWire</title>
+<style>
+:root {
+  --mw-bg: #ffffff;
+  --mw-panel: #f7f7f8;
+  --mw-border: #dedfe3;
+  --mw-fg: #1a1c20;
+  --mw-muted: #74777d;
+  --mw-accent: #2563eb;
+  --mw-danger: #dc2626;
+  --mw-cell: 9px;
+  --mw-line: 19px;
+  --mw-side: 192px;
+  --mw-right: 240px;
+}
+
+:root[data-theme="dark"] {
+  --mw-bg: #1a1a1a;
+  --mw-panel: #212121;
+  --mw-border: #35363a;
+  --mw-fg: #ececef;
+  --mw-muted: #9ca0a8;
+  --mw-accent: #60a5fa;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--mw-bg);
+  color: var(--mw-fg);
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+
+.mw-app {
+  display: grid;
+  grid-template-columns: var(--mw-side) minmax(0, 1fr) var(--mw-right);
+  height: 100%;
+  min-height: 0;
+}
+
+.mw-side,
+.mw-inspector {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--mw-panel);
+}
+.mw-side { border-right: 1px solid var(--mw-border); overflow-y: auto; }
+.mw-inspector { border-left: 1px solid var(--mw-border); overflow-y: auto; }
+
+.mw-group { padding: 0 8px 12px; }
+.mw-group > h2 {
+  margin: 8px 4px 6px;
+  color: var(--mw-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+.mw-tool {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--mw-fg);
+  cursor: pointer;
+  text-align: left;
+}
+.mw-tool:hover { background: color-mix(in srgb, var(--mw-fg) 7%, transparent); }
+.mw-tool[aria-pressed="true"] { background: var(--mw-accent); color: #fff; }
+.mw-tool code {
+  width: 18px;
+  color: inherit;
+  font: 13px/1 ui-monospace, monospace;
+  text-align: center;
+}
+
+.mw-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+.mw-icon svg { width: 100%; height: 100%; display: block; }
+.mw-tool .mw-icon { width: 16px; height: 16px; }
+.mw-mobile-tools .mw-icon { width: 18px; height: 18px; }
+.mw-more {
+  padding: 4px 8px 2px;
+  border: 0;
+  background: none;
+  color: var(--mw-muted);
+  cursor: pointer;
+  font-size: 10px;
+}
+.mw-secondary { display: none; }
+.mw-secondary.is-open { display: block; }
+
+.mw-center {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.mw-toolbar {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--mw-border);
+  background: var(--mw-bg);
+}
+.mw-toolbar button {
+  display: inline-flex;
+  min-width: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 7px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--mw-muted);
+  cursor: pointer;
+}
+.mw-toolbar button > svg { width: 16px; height: 16px; display: block; }
+.mw-toolbar button:hover { background: color-mix(in srgb, var(--mw-fg) 7%, transparent); color: var(--mw-fg); }
+.mw-toolbar button[aria-pressed="true"] { background: color-mix(in srgb, var(--mw-accent) 14%, transparent); color: var(--mw-accent); }
+.mw-toolbar button:disabled { opacity: .25; cursor: default; }
+.mw-toolbar .mw-primary {
+  margin-left: auto;
+  background: var(--mw-accent);
+  color: #fff;
+  font-weight: 600;
+}
+.mw-toolbar .mw-primary:hover { background: color-mix(in srgb, var(--mw-accent) 88%, #000); color: #fff; }
+.mw-text-input {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  z-index: 40;
+  width: min(320px, 70vw);
+  padding: 8px 10px;
+  transform: translateX(-50%);
+  border: 1px solid var(--mw-accent);
+  border-radius: 8px;
+  background: var(--mw-bg);
+  color: var(--mw-fg);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+.mw-text-input[hidden] { display: none; }
+.mw-output {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  z-index: 41;
+  width: min(560px, 86vw);
+  height: 132px;
+  transform: translateX(-50%);
+  padding: 8px 10px;
+  border: 1px solid var(--mw-border);
+  border-radius: 8px;
+  background: var(--mw-bg);
+  color: var(--mw-fg);
+  font: 12px/1.45 ui-monospace, monospace;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+.mw-output[hidden] { display: none; }
+
+.mw-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--mw-bg);
+}
+.mw-grid-wrap { position: relative; padding: 16px; }
+
+.mw-eraser-preview {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  border: 1px solid var(--mw-accent);
+  background: color-mix(in srgb, var(--mw-accent) 14%, transparent);
+  border-radius: 2px;
+}
+.mw-eraser-preview[hidden] { display: none; }
+
+.mw-eraser-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  color: var(--mw-muted);
+  font-size: 11px;
+}
+.mw-eraser-size[hidden] { display: none; }
+.mw-eraser-size input { width: 72px; accent-color: var(--mw-accent); }
+.mw-eraser-size output { min-width: 12px; text-align: center; }
+.mw-grid {
+  display: inline-grid;
+  width: max-content;
+  border: 1px solid var(--mw-border);
+  background:
+    repeating-linear-gradient(to right, color-mix(in srgb, var(--mw-border) 55%, transparent) 0 1px, transparent 1px var(--mw-cell)),
+    repeating-linear-gradient(to bottom, color-mix(in srgb, var(--mw-border) 55%, transparent) 0 1px, transparent 1px var(--mw-line));
+  font: 13px/var(--mw-line) ui-monospace, SFMono-Regular, Menlo, monospace;
+  touch-action: none;
+  user-select: none;
+}
+.mw-grid.is-gridless { background: none; }
+.mw-cell {
+  width: var(--mw-cell);
+  height: var(--mw-line);
+  overflow: hidden;
+  text-align: center;
+  white-space: pre;
+}
+.mw-cell.is-selected { background: color-mix(in srgb, var(--mw-accent) 18%, transparent); }
+
+.mw-statusbar {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 10px;
+  border-top: 1px solid var(--mw-border);
+  color: var(--mw-muted);
+  font-size: 11px;
+}
+.mw-statusbar .mw-grow { flex: 1; }
+.mw-size-select {
+  border: 0;
+  background: transparent;
+  color: var(--mw-muted);
+  cursor: pointer;
+}
+
+.mw-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--mw-border);
+}
+.mw-section h3 {
+  margin: 0 0 8px;
+  color: var(--mw-muted);
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+.mw-layer,
+.mw-empty {
+  padding: 6px 7px;
+  border-radius: 6px;
+  color: var(--mw-muted);
+  font-size: 12px;
+}
+.mw-layer { cursor: pointer; }
+.mw-layer:hover { background: color-mix(in srgb, var(--mw-fg) 7%, transparent); }
+.mw-layer[aria-selected="true"] { background: color-mix(in srgb, var(--mw-accent) 14%, transparent); color: var(--mw-fg); }
+.mw-field { display: grid; grid-template-columns: 1fr 76px; align-items: center; gap: 6px; margin: 6px 0; }
+.mw-field label { color: var(--mw-muted); font-size: 11px; }
+.mw-field input, .mw-field select {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--mw-border);
+  border-radius: 6px;
+  background: var(--mw-bg);
+}
+
+.mw-mobile-tools { display: none; }
+
+@media (max-width: 980px) {
+  :root { --mw-side: 168px; --mw-right: 210px; }
+}
+
+@media (max-width: 760px) {
+  :root { --mw-cell: 10px; --mw-line: 20px; }
+  html, body { height: 100%; overflow: hidden; }
+  .mw-app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  .mw-side, .mw-inspector { display: none; }
+  .mw-center { grid-row: 1; min-height: 0; }
+  .mw-canvas { min-height: 0; }
+  .mw-mobile-tools {
+    display: grid;
+    grid-row: 2;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(4, auto);
+    grid-auto-columns: 52px;
+    gap: 2px;
+    padding: 4px;
+    border-top: 1px solid var(--mw-border);
+    background: var(--mw-panel);
+    overflow-x: auto;
+  }
+  .mw-mobile-tools button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 2px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--mw-muted);
+    cursor: pointer;
+    font-size: 9px;
+  }
+  .mw-mobile-tools button span:last-child {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mw-mobile-tools button[aria-pressed="true"] { background: var(--mw-accent); color: #fff; }
+  .mw-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .mw-toolbar::-webkit-scrollbar { display: none; }
+  .mw-toolbar button { flex: 0 0 auto; }
+  .mw-toolbar .mw-primary { margin-left: 0; }
+  .mw-text-input { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
+}
+
+</style>
+</head>
+<body>
+<div id="markwire-root"></div>
+<script type="module">
+/**
+ * MarkWire board engine.
+ *
+ * One implementation shared by the editor UI and the server: the UI inlines this
+ * file, and the server imports it. Keeping a single copy is what lets the editor
+ * and the server agree on exactly how a shape becomes characters.
+ *
+ * The board stores geometry (boxes, strokes, labels) and derives the character
+ * grid on demand. Storing geometry rather than merged glyphs keeps the output
+ * independent of drawing order, so a divider drawn before or after the box edge
+ * it meets produces the same picture.
+ */
+
+const GLYPH = {
+  horizontal: "─",
+  vertical: "│",
+  topLeft: "┌",
+  topRight: "┐",
+  bottomLeft: "└",
+  bottomRight: "┘",
+  teeDown: "┬",
+  teeUp: "┴",
+  teeRight: "├",
+  teeLeft: "┤",
+  cross: "┼",
+};
+
+/** Renders an arm set. A cell with no arms falls back to a stroke on its own axis. */
+function glyphFor(arms, fallbackAxis) {
+  const { up, down, left, right } = arms;
+  if (up && down && left && right) return GLYPH.cross;
+  if (up && down && right) return GLYPH.teeRight;
+  if (up && down && left) return GLYPH.teeLeft;
+  if (left && right && down) return GLYPH.teeDown;
+  if (left && right && up) return GLYPH.teeUp;
+  if (down && right) return GLYPH.topLeft;
+  if (down && left) return GLYPH.topRight;
+  if (up && right) return GLYPH.bottomLeft;
+  if (up && left) return GLYPH.bottomRight;
+  if (left && right) return GLYPH.horizontal;
+  if (up && down) return GLYPH.vertical;
+  if (fallbackAxis === "v") return GLYPH.vertical;
+  if (fallbackAxis === "h") return GLYPH.horizontal;
+  return " ";
+}
+
+class Board {
+  constructor(rows, cols) {
+    this.rows = Math.max(1, Math.floor(rows));
+    this.cols = Math.max(1, Math.floor(cols));
+    this.shapes = [];
+  }
+
+  inBounds(row, col) {
+    return row >= 0 && row < this.rows && col >= 0 && col < this.cols;
+  }
+
+  clone() {
+    return Board.fromShapes(this.rows, this.cols, this.shapes);
+  }
+
+  static createShapeId() {
+    Board.nextId = (Board.nextId ?? 0) + 1;
+    return `shape-${Board.nextId}`;
+  }
+
+  /** Adds a shape and assigns the identity used by selection and layers. */
+  add(shape) {
+    const next = { id: shape.id ?? Board.createShapeId(), ...shape };
+    this.shapes.push(next);
+    return next;
+  }
+
+  /** Applies a human-readable role to every shape created by one component gesture. */
+  labelSince(index, role) {
+    for (const shape of this.shapes.slice(index)) shape.role = role;
+  }
+
+  select(id) {
+    return this.shapes.find((shape) => shape.id === id);
+  }
+
+  remove(id) {
+    const before = this.shapes.length;
+    this.shapes = this.shapes.filter((shape) => shape.id !== id);
+    return this.shapes.length !== before;
+  }
+
+  /** Moves a shape by row and column deltas. */
+  move(id, dRow, dCol) {
+    const shape = this.select(id);
+    if (!shape) return false;
+    if (shape.kind === "cells") {
+      const rows = shape.cells.map((cell) => cell.row);
+      const cols = shape.cells.map((cell) => cell.col);
+      const minRow = Math.min(...rows);
+      const maxRow = Math.max(...rows);
+      const minCol = Math.min(...cols);
+      const maxCol = Math.max(...cols);
+      const rowDelta = Math.max(-minRow, Math.min(this.rows - 1 - maxRow, dRow));
+      const colDelta = Math.max(-minCol, Math.min(this.cols - 1 - maxCol, dCol));
+      shape.cells = shape.cells.map((cell) => ({
+        ...cell,
+        row: cell.row + rowDelta,
+        col: cell.col + colDelta,
+      }));
+      return true;
+    }
+    shape.row = Math.max(0, Math.min(this.rows - 1, shape.row + dRow));
+    shape.col = Math.max(0, Math.min(this.cols - 1, shape.col + dCol));
+    return true;
+  }
+
+  /** Resizes a box-like shape by changing its width and height. */
+  resize(id, width, height) {
+    const shape = this.select(id);
+    if (!shape) return false;
+    if (shape.kind === "box") {
+      shape.width = Math.max(2, Math.min(this.cols - shape.col, width));
+      shape.height = Math.max(2, Math.min(this.rows - shape.row, height));
+      return true;
+    }
+    if (shape.kind === "h") {
+      shape.length = Math.max(1, Math.min(this.cols - shape.col, width));
+      return true;
+    }
+    if (shape.kind === "v") {
+      shape.length = Math.max(1, Math.min(this.rows - shape.row, height));
+      return true;
+    }
+    return false;
+  }
+
+  /** Applies a steady drag gesture to one shape. */
+  moveByGesture(id, dRow, dCol) {
+    return this.move(id, dRow, dCol);
+  }
+
+  /** Resizes by the distance between opposite corners of a drag. */
+  resizeByGesture(id, dRow, dCol) {
+    const shape = this.select(id);
+    if (!shape) return false;
+    if (shape.kind === "box") {
+      return this.resize(id, dCol, dRow);
+    }
+    if (shape.kind === "h") {
+      return this.resize(id, dCol, shape.length);
+    }
+    if (shape.kind === "v") {
+      return this.resize(id, shape.length, dRow);
+    }
+    return false;
+  }
+
+  /** Moves one shape to the end of the paint order. */
+  bringToFront(id) {
+    const index = this.shapes.findIndex((shape) => shape.id === id);
+    if (index < 0 || index === this.shapes.length - 1) return false;
+    const [shape] = this.shapes.splice(index, 1);
+    this.shapes.push(shape);
+    return true;
+  }
+
+  /** Moves one shape to the start of the paint order. */
+  sendToBack(id) {
+    const index = this.shapes.findIndex((shape) => shape.id === id);
+    if (index <= 0) return false;
+    const [shape] = this.shapes.splice(index, 1);
+    this.shapes.unshift(shape);
+    return true;
+  }
+
+  /** Reorders by one position in the paint order. */
+  reorder(id, delta) {
+    const index = this.shapes.findIndex((shape) => shape.id === id);
+    if (index < 0) return false;
+    const target = Math.max(0, Math.min(this.shapes.length - 1, index + delta));
+    if (target === index) return false;
+    const [shape] = this.shapes.splice(index, 1);
+    this.shapes.splice(target, 0, shape);
+    return true;
+  }
+
+  /** Rectangle outline. */
+  box(row, col, height, width) {
+    if (height < 2 || width < 2) return;
+    const bottom = row + height - 1;
+    const right = col + width - 1;
+    this.add({ kind: "box", row, col, height, width });
+  }
+
+  hline(row, col, length) {
+    if (length < 1) return;
+    this.add({ kind: "h", row, col, length });
+  }
+
+  vline(row, col, length) {
+    if (length < 1) return;
+    this.add({ kind: "v", row, col, length });
+  }
+
+  /** Multi-line label. Labels paint over strokes. */
+  text(row, col, text) {
+    this.add({ kind: "text", row, col, text });
+  }
+
+  /** Adds a single character stroke, preserving painted order. */
+  stroke(row, col, char) {
+    if (!this.inBounds(row, col) || char === " ") return;
+    this.add({ kind: "stroke", row, col, char });
+  }
+
+  /**
+   * Imports a plain-text region as a single stroke shape.
+   *
+   * Pasting is the inverse of export: every non-space character becomes a
+   * painted cell, so pasted artwork keeps its exact column alignment.
+   */
+  pasteText(text, row = 0, col = 0) {
+    const lines = text.replace(/\t/g, "    ").replace(/\r/g, "").split("\n");
+    const cells = [];
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      for (let charIndex = 0; charIndex < lines[lineIndex].length; charIndex++) {
+        const char = lines[lineIndex][charIndex];
+        if (char === " ") continue;
+        const targetRow = row + lineIndex;
+        const targetCol = col + charIndex;
+        if (!this.inBounds(targetRow, targetCol)) continue;
+        cells.push({ row: targetRow, col: targetCol, char });
+      }
+    }
+    if (cells.length === 0) return null;
+    return this.add({ kind: "cells", cells });
+  }
+
+  /** Converts a rectangle tool into a dashed or plain horizontal run. */
+  line(row, col, length) {
+    this.hline(row, col, length);
+  }
+
+  /** Draws an arrow along the major axis. */
+  arrow(row, col, dRow, dCol) {
+    const vertical = Math.abs(dRow) >= Math.abs(dCol);
+    if (vertical) {
+      const start = Math.min(row, row + dRow);
+      const length = Math.abs(dRow) + 1;
+      this.vline(start, col, length);
+      const tip = dRow >= 0 ? row + dRow : row;
+      const prev = dRow >= 0 ? tip - 1 : tip + 1;
+      if (this.inBounds(prev, col)) {
+        const axis = dRow >= 0 ? "↓" : "↑";
+        this.add({ kind: "stroke", row: tip, col, char: axis });
+      }
+      return;
+    }
+    const start = Math.min(col, col + dCol);
+    const length = Math.abs(dCol) + 1;
+    this.hline(row, start, length);
+    const tip = dCol >= 0 ? col + dCol : col;
+    if (this.inBounds(row, tip)) {
+      this.add({ kind: "stroke", row, col: tip, char: dCol >= 0 ? "→" : "←" });
+    }
+  }
+
+  /**
+   * Removes strokes inside a rectangle.
+   *
+   * Shapes are axis-aligned runs, so erasing trims or splits each run that
+   * overlaps the region instead of tracking pixels. Labels are dropped whole when
+   * their first cell falls inside the region.
+   */
+  erase(row, col, height, width) {
+    const top = row;
+    const bottom = row + height - 1;
+    const left = col;
+    const right = col + width - 1;
+    const kept = [];
+
+    for (const shape of this.shapes) {
+      if (shape.kind === "cells") {
+        const cells = shape.cells.filter((cell) => !(
+          cell.row >= top && cell.row <= bottom && cell.col >= left && cell.col <= right
+        ));
+        if (cells.length > 0) kept.push({ ...shape, cells });
+        continue;
+      }
+
+      if (shape.kind === "text" || shape.kind === "stroke") {
+        if (shape.row >= top && shape.row <= bottom && shape.col >= left && shape.col <= right) continue;
+        kept.push(shape);
+        continue;
+      }
+
+      if (shape.kind === "box") {
+        const shapeBottom = shape.row + shape.height - 1;
+        const shapeRight = shape.col + shape.width - 1;
+        if (
+          shape.row < top ||
+          shape.col < left ||
+          shapeBottom > bottom ||
+          shapeRight > right
+        ) {
+          kept.push(shape);
+          continue;
+        }
+        continue;
+      }
+
+      if (shape.kind === "h") {
+        if (shape.row < top || shape.row > bottom) {
+          kept.push(shape);
+          continue;
+        }
+        const start = shape.col;
+        const end = shape.col + shape.length - 1;
+        if (end < left || start > right) {
+          kept.push(shape);
+          continue;
+        }
+        if (start < left) kept.push({ ...shape, length: left - start });
+        if (end > right) {
+          kept.push({ ...shape, col: right + 1, length: end - right });
+        }
+        continue;
+      }
+
+      if (shape.kind === "v") {
+        if (shape.col < left || shape.col > right) {
+          kept.push(shape);
+          continue;
+        }
+        const start = shape.row;
+        const end = shape.row + shape.length - 1;
+        if (end < top || start > bottom) {
+          kept.push(shape);
+          continue;
+        }
+        if (start < top) kept.push({ ...shape, length: top - start });
+        if (end > bottom) {
+          kept.push({ ...shape, row: bottom + 1, length: end - bottom });
+        }
+      }
+    }
+
+    this.shapes = kept;
+  }
+
+  clear() {
+    this.shapes = [];
+  }
+
+  undo() {
+    return this.shapes.pop() !== undefined;
+  }
+
+  /** Strokes covering this cell, with the arms each run reaches within its own cells. */
+  cellAt(row, col) {
+    const cell = { up: false, down: false, left: false, right: false, hasH: false, hasV: false };
+    for (const shape of this.shapes) {
+      if (shape.kind === "box") {
+        const bottom = shape.row + shape.height - 1;
+        const right = shape.col + shape.width - 1;
+        if (row === shape.row || row === bottom) {
+          if (col >= shape.col && col <= right) {
+            cell.hasH = true;
+            if (col > shape.col) cell.left = true;
+            if (col < right) cell.right = true;
+          }
+        }
+        if (col === shape.col || col === right) {
+          if (row >= shape.row && row <= bottom) {
+            cell.hasV = true;
+            if (row > shape.row) cell.up = true;
+            if (row < bottom) cell.down = true;
+          }
+        }
+      } else if (shape.kind === "h" && shape.row === row) {
+        if (col >= shape.col && col < shape.col + shape.length) {
+          cell.hasH = true;
+          // A run reaches past an edge only when another cell of the same run sits there.
+          if (col > shape.col) cell.left = true;
+          if (col < shape.col + shape.length - 1) cell.right = true;
+        }
+      } else if (shape.kind === "v" && shape.col === col) {
+        if (row >= shape.row && row < shape.row + shape.length) {
+          cell.hasV = true;
+          if (row > shape.row) cell.up = true;
+          if (row < shape.row + shape.length - 1) cell.down = true;
+        }
+      }
+    }
+    return cell;
+  }
+
+  /** Arms for the final glyph, including joins where a perpendicular stroke crosses. */
+  armsAt(row, col) {
+    const cell = this.cellAt(row, col);
+    const arms = { up: cell.up, down: cell.down, left: cell.left, right: cell.right };
+
+    const above = this.inBounds(row - 1, col) ? this.cellAt(row - 1, col) : undefined;
+    const below = this.inBounds(row + 1, col) ? this.cellAt(row + 1, col) : undefined;
+    const prior = this.inBounds(row, col - 1) ? this.cellAt(row, col - 1) : undefined;
+    const next = this.inBounds(row, col + 1) ? this.cellAt(row, col + 1) : undefined;
+
+    if (cell.hasH) {
+      if (above?.hasV) arms.up = true;
+      if (below?.hasV) arms.down = true;
+    }
+    if (cell.hasV) {
+      if (prior?.hasH) arms.left = true;
+      if (next?.hasH) arms.right = true;
+    }
+    return arms;
+  }
+
+  /** Resolves one cell to its final character. */
+  at(row, col) {
+    if (!this.inBounds(row, col)) return " ";
+
+    for (let i = this.shapes.length - 1; i >= 0; i--) {
+      const shape = this.shapes[i];
+      if (shape.kind === "stroke") {
+        if (shape.row === row && shape.col === col) return shape.char;
+        continue;
+      }
+      if (shape.kind === "cells") {
+        const cell = shape.cells.find((item) => item.row === row && item.col === col);
+        if (cell) return cell.char;
+        continue;
+      }
+      if (shape.kind !== "text") continue;
+      const lines = shape.text.split("\n");
+      const lineIndex = row - shape.row;
+      if (lineIndex < 0 || lineIndex >= lines.length) continue;
+      const line = lines[lineIndex];
+      const charIndex = col - shape.col;
+      if (charIndex < 0 || charIndex >= line.length) continue;
+      return line[charIndex];
+    }
+
+    const cell = this.cellAt(row, col);
+    const axis = cell.hasH ? "h" : cell.hasV ? "v" : undefined;
+    return glyphFor(this.armsAt(row, col), axis);
+  }
+
+  /** Board as text: trailing spaces trimmed, trailing blank rows dropped. */
+  toText() {
+    const lines = [];
+    for (let row = 0; row < this.rows; row++) {
+      let line = "";
+      for (let col = 0; col < this.cols; col++) line += this.at(row, col);
+      lines.push(line.replace(/\s+$/, ""));
+    }
+    while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+    return lines.join("\n");
+  }
+
+  /** Board wrapped in a fenced block, ready to paste into a prompt. */
+  toMarkdown() {
+    const text = this.toText();
+    if (text === "") return "";
+    const runs = text.match(/`+/g) ?? [];
+    const longest = runs.reduce((max, run) => Math.max(max, run.length), 0);
+    const fence = "`".repeat(Math.max(3, longest + 1));
+    return `${fence}\n${text}\n${fence}\n`;
+  }
+
+  /** Serializes the shape list so a draft can round-trip through the client. */
+  toShapeList() {
+    return this.shapes.map((shape, index) => ({ id: `shape-${index + 1}`, ...shape }));
+  }
+
+  /** Rebuilds a board from a previously serialized shape list. */
+  static fromShapes(rows, cols, shapes) {
+    const board = new Board(rows, cols);
+    for (const shape of shapes ?? []) board.add(shape);
+    return board;
+  }
+}
+
+/**
+ * MarkWire component library.
+ *
+ * Every UI element in the sidebar draws through this module so the shape of each
+ * component is defined once and can be unit tested without a browser.
+ */
+
+function drawComponent(target, kind, top, left, height, width) {
+  switch (kind) {
+    case "button": {
+      const size = Math.max(3, height);
+      const inner = Math.max(8, width - 2);
+      const label = "OK";
+      const labelLeft = Math.max(0, Math.floor((inner - label.length) / 2));
+      const labelRow = Math.floor((size - 1) / 2);
+      target.text(top, left, `[${" ".repeat(inner)}]`);
+      for (let row = 1; row < size; row++) {
+        const text = row === labelRow
+          ? `[${" ".repeat(labelLeft)}${label}${" ".repeat(Math.max(0, inner - labelLeft - label.length))}]`
+          : `[${" ".repeat(inner)}]`;
+        target.text(top + row, left, text);
+      }
+      break;
+    }
+    case "input":
+      target.text(top, left, `[${"_".repeat(Math.max(8, width - 2))}]`);
+      break;
+    case "card": {
+      const w = Math.max(16, width);
+      const h = Math.max(6, height);
+      target.box(top, left, h, w);
+      target.text(top + 1, left + 2, "Title");
+      target.hline(top + 3, left, w);
+      break;
+    }
+    case "table": {
+      const h = Math.max(5, height);
+      const columns = 4;
+      const w = Math.max(columns * 8 + columns + 1, width);
+      const cellWidth = Math.max(7, Math.floor((w - columns - 1) / columns));
+      const tableWidth = cellWidth * columns + columns + 1;
+      const frame = Array.from({ length: columns }, (_, index) => {
+        const label = `Col ${String.fromCharCode(65 + index)}`;
+        return ` ${label.padEnd(cellWidth - 1)}`;
+      }).join("│");
+      target.box(top, left, h, tableWidth);
+      target.hline(top + 2, left, tableWidth);
+      for (let index = 1; index < columns; index++) {
+        target.vline(top, left + index * (cellWidth + 1), h);
+      }
+      target.text(top + 1, left, `│${frame}│`.slice(0, tableWidth));
+      break;
+    }
+    case "modal":
+      {
+        const w = Math.max(24, width);
+        const h = Math.max(7, height);
+        const actions = "[ Cancel ] [ OK ]";
+        target.box(top, left, h, w);
+        target.text(top + 1, left + 2, "Dialog");
+        target.stroke(top + 1, left + w - 3, "×");
+        target.hline(top + 3, left, w);
+        target.text(top + h - 3, left + w - actions.length - 2, actions);
+      }
+      break;
+    case "checkbox":
+      target.text(top, left, "[ ]");
+      target.text(top, left + 4, "Checkbox");
+      break;
+    case "radio":
+      target.text(top, left, "( )");
+      target.text(top, left + 4, "Radio");
+      break;
+    case "dropdown":
+      target.box(top, left, 3, Math.max(12, width));
+      target.text(top + 1, left + 2, "Select");
+      target.stroke(top + 1, left + Math.max(12, width) - 3, "▾");
+      break;
+    case "toggle":
+      target.text(top, left, "[● ] Toggle");
+      break;
+    case "tabs":
+      target.text(top, left, "[ Tab 1 ]  Tab 2  Tab 3");
+      break;
+    case "search":
+      target.box(top, left, 3, Math.max(14, width));
+      target.text(top + 1, left + 2, "⌕ Search");
+      break;
+    case "progress":
+      target.text(top, left, "▰▰▰▰▰▱▱▱▱▱");
+      break;
+    case "breadcrumb":
+      target.text(top, left, "Home > Section > Detail");
+      break;
+    case "pagination":
+      target.text(top, left, "‹  1  2  3  ›");
+      break;
+    case "nav":
+      target.text(top, left, "Logo      Link   Link   Link      [ Action ]");
+      target.hline(top + 1, left, Math.max(32, width));
+      break;
+    case "list":
+      target.text(top, left, "• Item one\n• Item two\n• Item three");
+      break;
+    case "placeholder":
+      target.box(top, left, Math.max(5, height), Math.max(16, width));
+      target.text(top + 1, left + 2, "Image");
+      break;
+    case "hsplit":
+      target.box(top, left, Math.max(6, height), Math.max(16, width));
+      target.vline(top, left + Math.floor(Math.max(16, width) / 2), Math.max(6, height));
+      break;
+    case "image":
+      target.box(top, left, Math.max(5, height), Math.max(16, width));
+      target.text(top + 2, left + Math.floor(Math.max(16, width) / 2) - 1, "IMG");
+      break;
+  }
+}
+
+/** Every component id the sidebar exposes, including the "more" section. */
+const COMPONENT_IDS = [
+  "button", "input", "card", "table", "modal",
+  "checkbox", "radio", "dropdown", "toggle", "tabs",
+  "search", "progress", "breadcrumb", "pagination", "nav",
+  "list", "placeholder", "hsplit", "image",
+];
+
+/**
+ * MarkWire icon set.
+ *
+ * Paths come from Phosphor Icons (MIT, https://phosphoricons.com), inlined at
+ * build time so the editor makes no network requests and ships no font.
+ */
+
+const ICONS = {
+  select: [
+    "M168,132.69,214.08,115l.33-.13A16,16,0,0,0,213,85.07L52.92,32.8A15.95,15.95,0,0,0,32.8,52.92L85.07,213a15.82,15.82,0,0,0,14.41,11l.78,0a15.84,15.84,0,0,0,14.61-9.59l.13-.33L132.69,168,184,219.31a16,16,0,0,0,22.63,0l12.68-12.68a16,16,0,0,0,0-22.63ZM195.31,208,144,156.69a16,16,0,0,0-26,4.93c0,.11-.09.22-.13.32l-17.65,46L48,48l159.85,52.2-45.95,17.64-.32.13a16,16,0,0,0-4.93,26h0L208,195.31Z",
+  ],
+  text: [
+    "M208,56V88a8,8,0,0,1-16,0V64H136V192h24a8,8,0,0,1,0,16H96a8,8,0,0,1,0-16h24V64H64V88a8,8,0,0,1-16,0V56a8,8,0,0,1,8-8H200A8,8,0,0,1,208,56Z",
+  ],
+  box: [
+    "M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,160H40V56H216V200Z",
+  ],
+  line: [
+    "M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128Z",
+  ],
+  arrow: [
+    "M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z",
+  ],
+  button: [
+    "M112,40a8,8,0,0,0-8,8V64H24A16,16,0,0,0,8,80v96a16,16,0,0,0,16,16h80v16a8,8,0,0,0,16,0V48A8,8,0,0,0,112,40ZM24,176V80h80v96ZM248,80v96a16,16,0,0,1-16,16H144a8,8,0,0,1,0-16h88V80H144a8,8,0,0,1,0-16h88A16,16,0,0,1,248,80ZM88,112a8,8,0,0,1-8,8H72v24a8,8,0,0,1-16,0V120H48a8,8,0,0,1,0-16H80A8,8,0,0,1,88,112Z",
+  ],
+  input: [
+    "M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,160H40V56H216V200Z",
+  ],
+  card: [
+    "M208,88H48a16,16,0,0,0-16,16v96a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V104A16,16,0,0,0,208,88Zm0,112H48V104H208v96ZM48,64a8,8,0,0,1,8-8H200a8,8,0,0,1,0,16H56A8,8,0,0,1,48,64ZM64,32a8,8,0,0,1,8-8H184a8,8,0,0,1,0,16H72A8,8,0,0,1,64,32Z",
+  ],
+  table: [
+    "M224,48H32a8,8,0,0,0-8,8V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A8,8,0,0,0,224,48ZM40,112H80v32H40Zm56,0H216v32H96ZM216,64V96H40V64ZM40,160H80v32H40Zm176,32H96V160H216v32Z",
+  ],
+  modal: [
+    "M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V88H40V56Zm0,144H40V104H216v96Z",
+  ],
+  checkbox: [
+    "M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM224,48V208a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32H208A16,16,0,0,1,224,48ZM208,208V48H48V208H208Z",
+  ],
+  radio: [
+    "M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm0-144a56,56,0,1,0,56,56A56.06,56.06,0,0,0,128,72Zm0,96a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z",
+  ],
+  dropdown: [
+    "M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z",
+  ],
+  toggle: [
+    "M176,56H80a72,72,0,0,0,0,144h96a72,72,0,0,0,0-144Zm0,128H80A56,56,0,0,1,80,72h96a56,56,0,0,1,0,112ZM80,88a40,40,0,1,0,40,40A40,40,0,0,0,80,88Zm0,64a24,24,0,1,1,24-24A24,24,0,0,1,80,152Z",
+  ],
+  tabs: [
+    "M255.66,165.7h0v0a.24.24,0,0,0,0-.08L233.37,91.4A15.89,15.89,0,0,0,218.05,80H208a8,8,0,0,0,0,16h10.05l19.2,64H206L185.37,91.4A15.89,15.89,0,0,0,170.05,80H160a8,8,0,0,0,0,16h10.05l19.2,64H158L137.37,91.4A15.89,15.89,0,0,0,122.05,80H38A15.89,15.89,0,0,0,22.63,91.4L.37,165.6l0,.05v0s0,.05,0,.08A8.1,8.1,0,0,0,0,168a8,8,0,0,0,8,8H248a8,8,0,0,0,7.66-10.3ZM38,96h84.1l19.2,64H18.75Z",
+  ],
+  search: [
+    "M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z",
+  ],
+  progress: [
+    "M224,200h-8V40a8,8,0,0,0-8-8H152a8,8,0,0,0-8,8V80H96a8,8,0,0,0-8,8v40H48a8,8,0,0,0-8,8v64H32a8,8,0,0,0,0,16H224a8,8,0,0,0,0-16ZM160,48h40V200H160ZM104,96h40V200H104ZM56,144H88v56H56Z",
+  ],
+  breadcrumb: [
+    "M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z",
+  ],
+  pagination: [
+    "M140,128a12,12,0,1,1-12-12A12,12,0,0,1,140,128Zm56-12a12,12,0,1,0,12,12A12,12,0,0,0,196,116ZM60,116a12,12,0,1,0,12,12A12,12,0,0,0,60,116Z",
+  ],
+  nav: [
+    "M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128ZM40,72H216a8,8,0,0,0,0-16H40a8,8,0,0,0,0,16ZM216,184H40a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Z",
+  ],
+  list: [
+    "M88,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H96A8,8,0,0,1,88,64Zm128,56H96a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Zm0,64H96a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16ZM56,56H40a8,8,0,0,0,0,16H56a8,8,0,0,0,0-16Zm0,64H40a8,8,0,0,0,0,16H56a8,8,0,0,0,0-16Zm0,64H40a8,8,0,0,0,0,16H56a8,8,0,0,0,0-16Z",
+  ],
+  placeholder: [
+    "M200,80v32a8,8,0,0,1-16,0V88H160a8,8,0,0,1,0-16h32A8,8,0,0,1,200,80ZM96,168H72V144a8,8,0,0,0-16,0v32a8,8,0,0,0,8,8H96a8,8,0,0,0,0-16ZM232,56V200a16,16,0,0,1-16,16H40a16,16,0,0,1-16-16V56A16,16,0,0,1,40,40H216A16,16,0,0,1,232,56ZM216,200V56H40V200H216Z",
+  ],
+  hsplit: [
+    "M104,32H64A16,16,0,0,0,48,48V208a16,16,0,0,0,16,16h40a16,16,0,0,0,16-16V48A16,16,0,0,0,104,32Zm0,176H64V48h40ZM192,32H152a16,16,0,0,0-16,16V208a16,16,0,0,0,16,16h40a16,16,0,0,0,16-16V48A16,16,0,0,0,192,32Zm0,176H152V48h40Z",
+  ],
+  image: [
+    "M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V158.75l-26.07-26.06a16,16,0,0,0-22.63,0l-20,20-44-44a16,16,0,0,0-22.62,0L40,149.37V56ZM40,172l52-52,80,80H40Zm176,28H194.63l-36-36,20-20L216,181.38V200ZM144,100a12,12,0,1,1,12,12A12,12,0,0,1,144,100Z",
+  ],
+  pencil: [
+    "M227.31,73.37,182.63,28.68a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.31,96a16,16,0,0,0,0-22.63ZM92.69,208H48V163.31l88-88L180.69,120ZM192,108.68,147.31,64l24-24L216,84.68Z",
+  ],
+  eraser: [
+    "M225,80.4,183.6,39a24,24,0,0,0-33.94,0L31,157.66a24,24,0,0,0,0,33.94l30.06,30.06A8,8,0,0,0,66.74,224H216a8,8,0,0,0,0-16h-84.7L225,114.34A24,24,0,0,0,225,80.4ZM108.68,208H70.05L42.33,180.28a8,8,0,0,1,0-11.31L96,115.31,148.69,168Zm105-105L160,156.69,107.31,104,161,50.34a8,8,0,0,1,11.32,0l41.38,41.38a8,8,0,0,1,0,11.31Z",
+  ],
+  brush: [
+    "M232,32a8,8,0,0,0-8-8c-44.08,0-89.31,49.71-114.43,82.63A60,60,0,0,0,32,164c0,30.88-19.54,44.73-20.47,45.37A8,8,0,0,0,16,224H92a60,60,0,0,0,57.37-77.57C182.3,121.31,232,76.08,232,32ZM92,208H34.63C41.38,198.41,48,183.92,48,164a44,44,0,1,1,44,44Zm32.42-94.45q5.14-6.66,10.09-12.55A76.23,76.23,0,0,1,155,121.49q-5.9,4.94-12.55,10.09A60.54,60.54,0,0,0,124.42,113.55Zm42.7-2.68a92.57,92.57,0,0,0-22-22c31.78-34.53,55.75-45,69.9-47.91C212.17,55.12,201.65,79.09,167.12,110.87Z",
+  ],
+  spray: [
+    "M200,80a8,8,0,0,0,8-8,56.06,56.06,0,0,0-56-56H80A16,16,0,0,0,64,32V80a24,24,0,0,1-24,24,8,8,0,0,0,0,16A40,40,0,0,0,80,80h32v24.62a23.87,23.87,0,0,1-9,18.74L87,136.15a39.79,39.79,0,0,0-15,31.23V224a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V211.47A270.88,270.88,0,0,0,174,80ZM80,32h72a40.08,40.08,0,0,1,39.2,32H80ZM192,211.47V224H88V167.38a23.87,23.87,0,0,1,9-18.74l16-12.79a39.79,39.79,0,0,0,15-31.23V80h27.52A254.86,254.86,0,0,1,192,211.47Z",
+  ],
+  shade: [
+    "M200,40H56A16,16,0,0,0,40,56V200a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm-64,80h64v16H136Zm0-16V88h64v16Zm0,48h64v16H136Zm64-80H136V56h64ZM56,56h64V200H56ZM200,200H136V184h64v16Z",
+  ],
+  fill: [
+    "M234.53,139.07a8,8,0,0,0,3.13-13.24L122.17,10.34a8,8,0,0,0-11.31,0L70.25,51,45.65,26.34A8,8,0,0,0,34.34,37.66l24.6,24.6L15,106.17a24,24,0,0,0,0,33.94L99.89,225a24,24,0,0,0,33.94,0l78.49-78.49Zm-32.19-5.24-79.83,79.83a8,8,0,0,1-11.31,0L26.34,128.8a8,8,0,0,1,0-11.31L70.25,73.57l29.12,29.12a28,28,0,1,0,11.31-11.32L81.57,62.26l35-34.95L217.19,128l-11.72,3.9A8.09,8.09,0,0,0,202.34,133.83Zm-86.83-26.31,0,0a13.26,13.26,0,1,1-.05.06S115.51,107.53,115.51,107.52Zm123.15,56a8,8,0,0,0-13.32,0C223.57,166.23,208,190.09,208,208a24,24,0,0,0,48,0C256,190.09,240.43,166.23,238.66,163.56ZM232,216a8,8,0,0,1-8-8c0-6.8,4-16.32,8-24.08,4,7.76,8,17.34,8,24.08A8,8,0,0,1,232,216Z",
+  ],
+  smudge: [
+    "M174,47.75a254.19,254.19,0,0,0-41.45-38.3,8,8,0,0,0-9.18,0A254.19,254.19,0,0,0,82,47.75C54.51,79.32,40,112.6,40,144a88,88,0,0,0,176,0C216,112.6,201.49,79.32,174,47.75ZM128,216a72.08,72.08,0,0,1-72-72c0-57.23,55.47-105,72-118,16.53,13,72,60.75,72,118A72.08,72.08,0,0,1,128,216Zm55.89-62.66a57.6,57.6,0,0,1-46.56,46.55A8.75,8.75,0,0,1,136,200a8,8,0,0,1-1.32-15.89c16.57-2.79,30.63-16.85,33.44-33.45a8,8,0,0,1,15.78,2.68Z",
+  ],
+  scatter: [
+    "M72,60A12,12,0,1,1,60,48,12,12,0,0,1,72,60Zm56-12a12,12,0,1,0,12,12A12,12,0,0,0,128,48Zm68,24a12,12,0,1,0-12-12A12,12,0,0,0,196,72ZM60,116a12,12,0,1,0,12,12A12,12,0,0,0,60,116Zm68,0a12,12,0,1,0,12,12A12,12,0,0,0,128,116Zm68,0a12,12,0,1,0,12,12A12,12,0,0,0,196,116ZM60,184a12,12,0,1,0,12,12A12,12,0,0,0,60,184Zm68,0a12,12,0,1,0,12,12A12,12,0,0,0,128,184Zm68,0a12,12,0,1,0,12,12A12,12,0,0,0,196,184Z",
+  ],
+  undo: [
+    "M224,128a96,96,0,0,1-94.71,96H128A95.38,95.38,0,0,1,62.1,197.8a8,8,0,0,1,11-11.63A80,80,0,1,0,71.43,71.39a3.07,3.07,0,0,1-.26.25L44.59,96H72a8,8,0,0,1,0,16H24a8,8,0,0,1-8-8V56a8,8,0,0,1,16,0V85.8L60.25,60A96,96,0,0,1,224,128Z",
+  ],
+  redo: [
+    "M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z",
+  ],
+  clear: [
+    "M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z",
+  ],
+  grid: [
+    "M104,40H56A16,16,0,0,0,40,56v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,104,40Zm0,64H56V56h48v48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,64H152V56h48v48Zm-96,32H56a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,104,136Zm0,64H56V152h48v48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,200,136Zm0,64H152V152h48v48Z",
+  ],
+  theme: [
+    "M233.54,142.23a8,8,0,0,0-8-2,88.08,88.08,0,0,1-109.8-109.8,8,8,0,0,0-10-10,104.84,104.84,0,0,0-52.91,37A104,104,0,0,0,136,224a103.09,103.09,0,0,0,62.52-20.88,104.84,104.84,0,0,0,37-52.91A8,8,0,0,0,233.54,142.23ZM188.9,190.34A88,88,0,0,1,65.66,67.11a89,89,0,0,1,31.4-26A106,106,0,0,0,96,56,104.11,104.11,0,0,0,200,160a106,106,0,0,0,14.92-1.06A89,89,0,0,1,188.9,190.34Z",
+  ],
+  copy: [
+    "M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z",
+  ],
+};
+
+/** Returns an inline 256x256 SVG that inherits the surrounding text color. */
+function icon(name) {
+  const paths = ICONS[name];
+  if (!paths) return "";
+  return `<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">${paths
+    .map((d) => `<path d="${d}"/>`)
+    .join("")}</svg>`;
+}
+
+/** Names available to the editor. */
+const ICON_NAMES = Object.keys(ICONS);
+
+/**
+ * MarkWire editor shell.
+ *
+ * The editor owns only interaction state. All characters come from the shared
+ * Board engine so the tool result, the canvas, and Markdown export cannot drift.
+ */
+
+
+
+const GROUPS = [
+  {
+    title: "Basics",
+    tools: [
+      ["select", "Select"],
+      ["text", "Text"],
+      ["box", "Box"],
+      ["line", "Line"],
+      ["arrow", "Arrow"],
+    ],
+  },
+  {
+    title: "UI Elements",
+    tools: [
+      ["button", "Button"],
+      ["input", "Input"],
+      ["card", "Card"],
+      ["table", "Table"],
+      ["modal", "Modal"],
+    ],
+    more: [
+      ["checkbox", "Checkbox"],
+      ["radio", "Radio"],
+      ["dropdown", "Dropdown"],
+      ["toggle", "Toggle"],
+      ["tabs", "Tabs"],
+      ["search", "Search"],
+      ["progress", "Progress"],
+      ["breadcrumb", "Breadcrumb"],
+      ["pagination", "Pagination"],
+      ["nav", "Nav Bar"],
+      ["list", "List"],
+      ["placeholder", "Placeholder"],
+      ["hsplit", "HSplit"],
+      ["image", "Image"],
+    ],
+  },
+  {
+    title: "Draw",
+    tools: [
+      ["pencil", "Pencil"],
+      ["eraser", "Eraser"],
+    ],
+    more: [
+      ["brush", "Brush"],
+      ["spray", "Spray"],
+      ["shade", "Shade"],
+      ["fill", "Fill"],
+      ["smudge", "Smudge"],
+      ["scatter", "Scatter"],
+    ],
+  },
+];
+
+const SIZES = [
+  [60, 40, "Mobile"],
+  [40, 20, "Small"],
+  [80, 40, "Medium"],
+  [120, 60, "Large"],
+  [160, 40, "Wide"],
+  [80, 80, "Tall"],
+];
+
+const PAINT_TOOLS = new Set(["pencil", "brush", "spray", "shade", "fill", "smudge", "scatter", "eraser"]);
+
+function mountMarkWire(root, options) {
+  const { Board, rows, cols, shapes = [] } = options;
+  let board = Board.fromShapes(rows, cols, shapes);
+  let activeTool = "select";
+  let dragStart = null;
+  let dragPreview = null;
+  let selectDrag = null;
+  let selectedId = null;
+  let pendingTextCell = null;
+  let editingTextId = null;
+  let lastLayerSignature = "";
+  const preferenceKey = "markwire.preferences";
+  const preferences = readPreferences();
+  let gridLines = preferences.gridLines ?? true;
+  let theme = preferences.theme ?? "light";
+  let eraserSize = preferences.eraserSize ?? 1;
+  let undoStack = [];
+  let redoStack = [];
+
+  root.innerHTML = `
+    <div class="mw-app">
+      <aside class="mw-side" id="mw-tools"></aside>
+      <main class="mw-center">
+        <div class="mw-toolbar">
+          <button data-act="undo" title="Undo (Ctrl+Z)" aria-label="Undo">${icon("undo")}</button>
+          <button data-act="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">${icon("redo")}</button>
+          <button data-act="clear" title="Clear Canvas" aria-label="Clear canvas">${icon("clear")}</button>
+          <button data-act="grid" title="Toggle grid lines" aria-label="Toggle grid" aria-pressed="${gridLines}">${icon("grid")}</button>
+          <button data-act="theme" title="Dark mode" aria-label="Toggle theme">${icon("theme")}</button>
+          <label class="mw-eraser-size" hidden>
+            <span class="mw-icon" aria-hidden="true">${icon("eraser")}</span>
+            <input type="range" min="1" max="9" step="1" value="${eraserSize}"
+              aria-label="Eraser size">
+            <output>${eraserSize}</output>
+          </label>
+          <button class="mw-primary" data-act="copy">Copy Markdown</button>
+        </div>
+        <div class="mw-canvas">
+          <div class="mw-grid-wrap">
+            <div class="mw-grid" role="grid" aria-label="ASCII wireframe canvas"></div>
+            <div class="mw-eraser-preview" hidden></div>
+          </div>
+        </div>
+        <div class="mw-statusbar">
+          <span class="mw-status">Ready</span>
+          <span class="mw-grow"></span>
+          <span class="mw-cursor">Ln 1, Col 1</span>
+          <select class="mw-size-select" aria-label="Canvas size"></select>
+        </div>
+      </main>
+      <aside class="mw-inspector">
+        <section class="mw-section">
+          <h3>Layers</h3>
+          <div class="mw-layers"></div>
+        </section>
+        <section class="mw-section">
+          <h3>Inspect</h3>
+          <div class="mw-inspect"></div>
+        </section>
+      </aside>
+      <nav class="mw-mobile-tools" aria-label="Tools"></nav>
+      <input class="mw-text-input" placeholder="Label text" aria-label="Label text" hidden>
+      <textarea class="mw-output" readonly aria-label="Markdown output" hidden></textarea>
+    </div>`;
+
+  const toolsEl = root.querySelector("#mw-tools");
+  const mobileEl = root.querySelector(".mw-mobile-tools");
+  const gridEl = root.querySelector(".mw-grid");
+  const statusEl = root.querySelector(".mw-status");
+  const cursorEl = root.querySelector(".mw-cursor");
+  const layersEl = root.querySelector(".mw-layers");
+  const inspectEl = root.querySelector(".mw-inspect");
+  const sizeEl = root.querySelector(".mw-size-select");
+  const textInputEl = root.querySelector(".mw-text-input");
+  const outputEl = root.querySelector(".mw-output");
+  const eraserSizeEl = root.querySelector(".mw-eraser-size");
+  const eraserRangeEl = root.querySelector(".mw-eraser-size input");
+  const eraserOutputEl = root.querySelector(".mw-eraser-size output");
+  const eraserPreviewEl = root.querySelector(".mw-eraser-preview");
+  const gridWrapEl = root.querySelector(".mw-grid-wrap");
+  gridEl.classList.toggle("is-gridless", !gridLines);
+  applyTheme(theme);
+
+  for (const group of GROUPS) {
+    const section = document.createElement("section");
+    section.className = "mw-group";
+    section.innerHTML = `<h2>${group.title}</h2>`;
+    for (const tool of group.tools) section.append(toolButton(tool));
+    if (group.more?.length) {
+      const more = document.createElement("button");
+      more.className = "mw-more";
+      more.type = "button";
+      more.textContent = "more ▾";
+      const secondary = document.createElement("div");
+      secondary.className = "mw-secondary";
+      for (const tool of group.more) secondary.append(toolButton(tool));
+      more.addEventListener("click", () => {
+        const open = secondary.classList.toggle("is-open");
+        more.textContent = open ? "more ▴" : "more ▾";
+      });
+      section.append(more, secondary);
+    }
+    toolsEl.append(section);
+  }
+
+  const mobileTools = GROUPS.flatMap((group) => [
+    ...group.tools,
+    ...(group.more ?? []),
+  ]);
+  for (const tool of mobileTools) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.tool = tool[0];
+    button.innerHTML = `<span class="mw-icon">${icon(tool[0])}</span><span>${tool[1]}</span>`;
+    button.setAttribute("aria-label", tool[1]);
+    button.addEventListener("click", () => setTool(tool[0]));
+    mobileEl.append(button);
+  }
+
+  for (const [colsValue, rowsValue, label] of SIZES) {
+    const option = document.createElement("option");
+    option.value = `${rowsValue}x${colsValue}`;
+    option.textContent = `${label} (${colsValue}×${rowsValue})`;
+    option.selected = rowsValue === board.rows && colsValue === board.cols;
+    sizeEl.append(option);
+  }
+
+  function toolButton([id, label]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "mw-tool";
+    button.dataset.tool = id;
+    button.innerHTML = `<span class="mw-icon">${icon(id)}</span><span>${label}</span>`;
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    button.addEventListener("click", () => setTool(id));
+    return button;
+  }
+
+  function setStatus(text) {
+    statusEl.textContent = text;
+  }
+
+  function readPreferences() {
+    try {
+      return JSON.parse(root.ownerDocument.defaultView?.localStorage?.getItem(preferenceKey) ?? "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  function savePreferences() {
+    try {
+      root.ownerDocument.defaultView?.localStorage?.setItem(
+        preferenceKey,
+        JSON.stringify({ theme, gridLines, eraserSize }),
+      );
+    } catch {}
+  }
+
+  function snapshot() {
+    return Board.fromShapes(board.rows, board.cols, board.shapes);
+  }
+
+  function pushUndo() {
+    undoStack.push(snapshot());
+    if (undoStack.length > 50) undoStack.shift();
+    redoStack = [];
+    syncHistoryButtons();
+  }
+
+  function restore(next) {
+    board = next;
+    selectedId = null;
+    render();
+  }
+
+  function undo() {
+    const previous = undoStack.pop();
+    if (!previous) return false;
+    redoStack.push(snapshot());
+    restore(previous);
+    syncHistoryButtons();
+    return true;
+  }
+
+  function redo() {
+    const next = redoStack.pop();
+    if (!next) return false;
+    undoStack.push(snapshot());
+    restore(next);
+    syncHistoryButtons();
+    return true;
+  }
+
+  function syncHistoryButtons() {
+    const undoButton = root.querySelector("[data-act=undo]");
+    const redoButton = root.querySelector("[data-act=redo]");
+    if (undoButton) undoButton.disabled = undoStack.length === 0;
+    if (redoButton) redoButton.disabled = redoStack.length === 0;
+  }
+
+  function setTool(tool) {
+    activeTool = tool;
+    dragStart = null;
+    dragPreview = null;
+    selectDrag = null;
+    eraserSizeEl.hidden = tool !== "eraser";
+    eraserPreviewEl.hidden = tool !== "eraser";
+    for (const button of root.querySelectorAll("[data-tool]")) {
+      button.setAttribute("aria-pressed", String(button.dataset.tool === tool));
+    }
+    setStatus(`${tool} tool`);
+    render();
+  }
+
+  eraserRangeEl.addEventListener("input", () => {
+    eraserSize = Number(eraserRangeEl.value);
+    eraserOutputEl.textContent = String(eraserSize);
+    savePreferences();
+  });
+
+  function currentBoard() {
+    if (!dragPreview) return board;
+    const preview = snapshot();
+    applyGesture(preview, dragPreview, true);
+    return preview;
+  }
+
+  function applyGesture(target, kind, isPreview = false) {
+    if (!dragStart) return;
+    const start = dragStart;
+    const end = start.end;
+    const top = Math.min(start.row, end.row);
+    const left = Math.min(start.col, end.col);
+    const height = Math.abs(end.row - start.row) + 1;
+    const width = Math.abs(end.col - start.col) + 1;
+
+    switch (kind) {
+      case "box": target.box(top, left, height, width); break;
+      case "line":
+        if (Math.abs(end.row - start.row) >= Math.abs(end.col - start.col)) {
+          target.vline(top, start.col, height);
+        } else {
+          target.hline(start.row, left, width);
+        }
+        break;
+      case "arrow": target.arrow(start.row, start.col, end.row - start.row, end.col - start.col); break;
+      case "pencil": target.stroke(start.row, start.col, "█"); break;
+      case "eraser": target.erase(top, left, height, width); break;
+      default:
+        if (!isPreview) component(target, kind, top, left, height, width);
+    }
+  }
+
+  /** Paints every cell between two pointer samples so fast strokes stay connected. */
+  function paintLine(target, kind, row, col, endRow, endCol) {
+    let currentRow = row;
+    let currentCol = col;
+    const dRow = Math.abs(endRow - row);
+    const dCol = Math.abs(endCol - col);
+    const stepRow = row < endRow ? 1 : -1;
+    const stepCol = col < endCol ? 1 : -1;
+    let error = dCol - dRow;
+    for (;;) {
+      paintCell(target, kind, currentRow, currentCol);
+      if (currentRow === endRow && currentCol === endCol) break;
+      const doubled = error * 2;
+      if (doubled > -dRow) {
+        error -= dRow;
+        currentCol += stepCol;
+      }
+      if (doubled < dCol) {
+        error += dCol;
+        currentRow += stepRow;
+      }
+    }
+  }
+
+  /** Applies one tool's character at a cell. */
+  function paintCell(target, kind, row, col) {
+    if (kind === "eraser") {
+      const offset = Math.floor((eraserSize - 1) / 2);
+      target.erase(row - offset, col - offset, eraserSize, eraserSize);
+      return;
+    }
+    const char = {
+      pencil: "█",
+      brush: "▓",
+      spray: "░",
+      shade: "▒",
+      fill: "█",
+      smudge: "▒",
+      scatter: ".",
+    }[kind] ?? "█";
+    target.stroke(row, col, char);
+  }
+
+  function component(target, kind, top, left, height, width) {
+    const start = target.shapes.length;
+    const role = kind[0].toUpperCase() + kind.slice(1);
+    drawComponent(target, kind, top, left, height, width);
+    target.labelSince(start, role);
+  }
+
+  function render(dirty) {
+    renderCells(dirty);
+    const layerSignature = JSON.stringify({
+      selectedId,
+      shapes: board.shapes.map((shape) => [shape.id, shape.role, shape.row, shape.col, shape.width, shape.height, shape.length, shape.text]),
+    });
+    if (layerSignature !== lastLayerSignature) {
+      lastLayerSignature = layerSignature;
+      renderLayers();
+      renderInspector();
+    }
+    syncSizeSelect();
+  }
+
+  /** Keeps the canvas-size control in step with the board after undo or tool results. */
+  function syncSizeSelect() {
+    const value = `${board.rows}x${board.cols}`;
+    for (const option of [...sizeEl.options]) {
+      if (option.dataset.custom === "true") option.remove();
+    }
+    if (![...sizeEl.options].some((option) => option.value === value)) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = `Custom (${board.cols}×${board.rows})`;
+      option.dataset.custom = "true";
+      sizeEl.append(option);
+    }
+    sizeEl.value = value;
+  }
+
+  function renderCells(dirty) {
+    const view = currentBoard();
+    const text = view.toText().split("\n");
+    const selected = selectedId ? view.select(selectedId) : null;
+    const expected = board.rows * board.cols;
+    if (gridEl.childElementCount !== expected) {
+      const fragment = document.createDocumentFragment();
+      for (let index = 0; index < expected; index++) {
+        const cell = document.createElement("div");
+        cell.className = "mw-cell";
+        fragment.append(cell);
+      }
+      gridEl.replaceChildren(fragment);
+    }
+    gridEl.style.gridTemplateColumns = `repeat(${board.cols}, var(--mw-cell))`;
+    const startRow = dirty ? Math.max(0, Math.min(dirty.top, dirty.bottom)) : 0;
+    const endRow = dirty ? Math.min(board.rows - 1, Math.max(dirty.top, dirty.bottom)) : board.rows - 1;
+    const startCol = dirty ? Math.max(0, Math.min(dirty.left, dirty.right)) : 0;
+    const endCol = dirty ? Math.min(board.cols - 1, Math.max(dirty.left, dirty.right)) : board.cols - 1;
+    for (let row = startRow; row <= endRow; row++) {
+      const line = text[row] ?? "";
+      for (let col = startCol; col <= endCol; col++) {
+        const node = gridEl.children[row * board.cols + col];
+        const char = line[col] ?? " ";
+        if (node.textContent !== char) node.textContent = char;
+        const isSelected = Boolean(selected && shapeContains(selected, row, col));
+        if (node.classList.contains("is-selected") !== isSelected) {
+          node.classList.toggle("is-selected", isSelected);
+        }
+      }
+    }
+  }
+
+  function shapeContains(shape, row, col) {
+    if (shape.kind === "cells") {
+      return shape.cells.some((cell) => cell.row === row && cell.col === col);
+    }
+    if (shape.kind === "box") {
+      return row >= shape.row && row < shape.row + shape.height && col >= shape.col && col < shape.col + shape.width;
+    }
+    if (shape.kind === "h") return row === shape.row && col >= shape.col && col < shape.col + shape.length;
+    if (shape.kind === "v") return col === shape.col && row >= shape.row && row < shape.row + shape.length;
+    if (shape.kind === "text") {
+      const lines = shape.text.split("\n");
+      const lineIndex = row - shape.row;
+      if (lineIndex < 0 || lineIndex >= lines.length) return false;
+      return col >= shape.col && col < shape.col + lines[lineIndex].length;
+    }
+    return shape.row === row && shape.col === col;
+  }
+
+  function shapeBottom(shape) {
+    if (shape.kind === "cells") return Math.max(...shape.cells.map((cell) => cell.row));
+    if (shape.kind === "box") return shape.row + shape.height - 1;
+    if (shape.kind === "v") return shape.row + shape.length - 1;
+    if (shape.kind === "text") return shape.row + shape.text.split("\n").length - 1;
+    return shape.row;
+  }
+
+  function shapeRight(shape) {
+    if (shape.kind === "cells") return Math.max(...shape.cells.map((cell) => cell.col));
+    if (shape.kind === "box") return shape.col + shape.width - 1;
+    if (shape.kind === "h") return shape.col + shape.length - 1;
+    if (shape.kind === "text") {
+      const lines = shape.text.split("\n");
+      return shape.col + Math.max(...lines.map((line) => line.length)) - 1;
+    }
+    return shape.col;
+  }
+
+  function renderLayers() {
+    if (board.shapes.length === 0) {
+      layersEl.innerHTML = `<div class="mw-empty">Draw something to see layers.</div>`;
+      return;
+    }
+    layersEl.innerHTML = board.shapes
+      .map((shape, index) => `<button class="mw-layer" type="button" data-layer="${index}" aria-selected="${shape.id === selectedId}"><span>${index + 1}. ${escapeHtml(shape.role ?? shape.kind)}</span></button>`)
+      .join("");
+  }
+
+  function renderInspector() {
+    const shape = selectedId ? board.select(selectedId) : null;
+    if (!shape) {
+      inspectEl.innerHTML = `<div class="mw-empty">Select a layer to edit its properties.</div>`;
+      return;
+    }
+    const fields = [
+      ["Role", "role", shape.role ?? shape.kind],
+      ["Row", "row", shape.kind === "cells" ? Math.min(...shape.cells.map((cell) => cell.row)) : shape.row],
+      ["Col", "col", shape.kind === "cells" ? Math.min(...shape.cells.map((cell) => cell.col)) : shape.col],
+    ];
+    if (shape.kind === "box") fields.push(["Width", "width", shape.width], ["Height", "height", shape.height]);
+    if (shape.kind === "h") fields.push(["Length", "length", shape.length]);
+    if (shape.kind === "v") fields.push(["Length", "length", shape.length]);
+    if (shape.kind === "text") fields.push(["Text", "text", shape.text]);
+    inspectEl.innerHTML = fields
+      .map(([label, key, value]) => `<div class="mw-field"><label>${label}<input data-prop="${key}" value="${escapeAttr(value)}"></label></div>`)
+      .join("");
+  }
+
+  function applyProperty(key, raw) {
+    const shape = selectedId ? board.select(selectedId) : null;
+    if (!shape) return;
+    const textKeys = new Set(["text", "role"]);
+    const numeric = !textKeys.has(key);
+    let value = numeric ? Number.parseInt(raw, 10) : raw;
+    if (numeric && !Number.isFinite(value)) return;
+    if (numeric) {
+      const max = key === "row" ? board.rows - 1
+        : key === "col" ? board.cols - 1
+        : key === "height" ? board.rows - shape.row
+        : board.cols - shape.col;
+      value = clamp(value, key === "height" || key === "width" || key === "length" ? 1 : 0, max);
+    }
+    if (shape.kind === "cells" && (key === "row" || key === "col")) {
+      const current = key === "row"
+        ? Math.min(...shape.cells.map((cell) => cell.row))
+        : Math.min(...shape.cells.map((cell) => cell.col));
+      if (value === current) return;
+      pushUndo();
+      board.move(shape.id, key === "row" ? value - current : 0, key === "col" ? value - current : 0);
+      render();
+      return;
+    }
+    if (shape[key] === value) return;
+    pushUndo();
+    shape[key] = value;
+    render();
+  }
+
+  function toCell(event) {
+    const rect = gridEl.getBoundingClientRect();
+    const cellWidth = rect.width / board.cols;
+    const cellHeight = rect.height / board.rows;
+    return {
+      row: clamp(Math.floor((event.clientY - rect.top) / cellHeight), 0, board.rows - 1),
+      col: clamp(Math.floor((event.clientX - rect.left) / cellWidth), 0, board.cols - 1),
+    };
+  }
+
+  gridEl.addEventListener("pointerdown", (event) => {
+    const cell = toCell(event);
+    cursorEl.textContent = `Ln ${cell.row + 1}, Col ${cell.col + 1}`;
+    if (activeTool === "select") {
+      const hit = [...board.shapes].reverse().find((shape) => shapeContains(shape, cell.row, cell.col));
+      selectedId = hit?.id ?? null;
+      if (selectedId) {
+        const selected = board.select(selectedId);
+        const resizable = selected && ["box", "h", "v"].includes(selected.kind);
+        const corner = resizable && cell.row === shapeBottom(selected) && cell.col === shapeRight(selected);
+        selectDrag = { id: selectedId, start: cell, mode: corner ? "resize" : "move", changed: false };
+        gridEl.setPointerCapture(event.pointerId);
+      }
+      render();
+      return;
+    }
+    if (activeTool === "text") {
+      pendingTextCell = cell;
+      textInputEl.hidden = false;
+      textInputEl.focus();
+      textInputEl.select();
+      setStatus("Type a label, then press Enter");
+      return;
+    }
+    dragStart = { ...cell, end: cell, changed: false };
+    dragPreview = activeTool;
+    gridEl.setPointerCapture(event.pointerId);
+    if (PAINT_TOOLS.has(activeTool)) {
+      pushUndo();
+      dragStart.changed = true;
+      paintCell(board, activeTool, cell.row, cell.col);
+    }
+    render();
+  });
+
+  gridEl.addEventListener("pointermove", (event) => {
+    const cell = toCell(event);
+    cursorEl.textContent = `Ln ${cell.row + 1}, Col ${cell.col + 1}`;
+    if (activeTool === "eraser") updateEraserPreview(cell);
+    if (selectDrag) {
+      const dRow = cell.row - selectDrag.start.row;
+      const dCol = cell.col - selectDrag.start.col;
+      if ((dRow || dCol) && !selectDrag.changed) {
+        pushUndo();
+        selectDrag.changed = true;
+      }
+      if (selectDrag.mode === "resize") board.resizeByGesture(selectDrag.id, dRow, dCol);
+      else board.moveByGesture(selectDrag.id, dRow, dCol);
+      selectDrag.start = cell;
+      render();
+      return;
+    }
+    if (!dragStart) return;
+    if (cell.row !== dragStart.row || cell.col !== dragStart.col) {
+      if (!dragStart.changed) {
+        pushUndo();
+        dragStart.changed = true;
+      }
+    }
+    dragStart.end = cell;
+    if (PAINT_TOOLS.has(activeTool)) {
+      paintLine(board, activeTool, dragStart.row, dragStart.col, cell.row, cell.col);
+      const dirty = {
+        top: Math.min(dragStart.row, cell.row) - 1,
+        bottom: Math.max(dragStart.row, cell.row) + 1,
+        left: Math.min(dragStart.col, cell.col) - 1,
+        right: Math.max(dragStart.col, cell.col) + 1,
+      };
+      dragStart.row = cell.row;
+      dragStart.col = cell.col;
+      render(dirty);
+      return;
+    }
+    render();
+  });
+
+  gridEl.addEventListener("pointerleave", () => {
+    eraserPreviewEl.hidden = true;
+  });
+
+  /** Draws the square eraser footprint under the pointer. */
+  function updateEraserPreview(cell) {
+    const cellWidth = gridEl.getBoundingClientRect().width / board.cols;
+    const cellHeight = gridEl.getBoundingClientRect().height / board.rows;
+    const offset = Math.floor((eraserSize - 1) / 2);
+    const top = clamp(cell.row - offset, 0, board.rows - 1);
+    const left = clamp(cell.col - offset, 0, board.cols - 1);
+    const height = Math.min(eraserSize, board.rows - top);
+    const width = Math.min(eraserSize, board.cols - left);
+    eraserPreviewEl.hidden = false;
+    eraserPreviewEl.style.left = `${gridEl.offsetLeft + left * cellWidth}px`;
+    eraserPreviewEl.style.top = `${gridEl.offsetTop + top * cellHeight}px`;
+    eraserPreviewEl.style.width = `${width * cellWidth}px`;
+    eraserPreviewEl.style.height = `${height * cellHeight}px`;
+  }
+
+  gridEl.addEventListener("pointerup", (event) => {
+    if (selectDrag) {
+      selectDrag = null;
+      render();
+      return;
+    }
+    if (!dragStart) return;
+    const cell = toCell(event);
+    if (cell.row !== dragStart.row || cell.col !== dragStart.col) {
+      if (!dragStart.changed) {
+        pushUndo();
+        dragStart.changed = true;
+      }
+    }
+    dragStart.end = cell;
+    const before = board.shapes.length;
+    if (!dragStart.changed) {
+      dragStart = null;
+      dragPreview = null;
+      render();
+      return;
+    }
+    applyGesture(board, dragPreview);
+    if (board.shapes.length > before) selectedId = board.shapes[board.shapes.length - 1].id;
+    dragStart = null;
+    dragPreview = null;
+    render();
+  });
+
+  gridEl.addEventListener("dblclick", (event) => {
+    const cell = toCell(event);
+    const hit = [...board.shapes].reverse().find((shape) => shapeContains(shape, cell.row, cell.col));
+    if (!hit || hit.kind !== "text") return;
+    selectedId = hit.id;
+    pendingTextCell = { row: hit.row, col: hit.col };
+    editingTextId = hit.id;
+    textInputEl.value = hit.text;
+    textInputEl.hidden = false;
+    textInputEl.focus();
+    textInputEl.select();
+    setStatus("Edit label, then press Enter");
+  });
+
+  root.addEventListener("click", (event) => {
+    const layer = event.target.closest("[data-layer]");
+    if (layer) {
+      selectedId = board.shapes[Number(layer.dataset.layer)]?.id ?? null;
+      render();
+      return;
+    }
+    const button = event.target.closest("[data-act]");
+    if (!button) return;
+    handleAction(button.dataset.act, button);
+  });
+
+  inspectEl.addEventListener("change", (event) => {
+    const input = event.target.closest("[data-prop]");
+    if (input) applyProperty(input.dataset.prop, input.value);
+  });
+
+  textInputEl.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      pendingTextCell = null;
+      editingTextId = null;
+      textInputEl.value = "";
+      textInputEl.hidden = true;
+      setStatus("Text cancelled");
+      return;
+    }
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const value = textInputEl.value.trim();
+    if (!value || !pendingTextCell) {
+      setStatus("Enter text first");
+      return;
+    }
+    pushUndo();
+    const existing = editingTextId ? board.select(editingTextId) : null;
+    const shape = existing ?? board.add({
+      kind: "text",
+      row: pendingTextCell.row,
+      col: pendingTextCell.col,
+      text: value,
+    });
+    if (existing) existing.text = value;
+    selectedId = shape.id;
+    pendingTextCell = null;
+    editingTextId = null;
+    textInputEl.value = "";
+    textInputEl.hidden = true;
+    render();
+    setStatus(existing ? "Text updated" : "Text added");
+  });
+
+  root.ownerDocument.addEventListener("paste", (event) => {
+    const target = event.target;
+    if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
+    const raw = event.clipboardData?.getData("text/plain") ?? "";
+    if (!raw.trim()) return;
+    event.preventDefault();
+    let text = raw.replace(/\r/g, "").replace(/\t/g, "    ");
+    text = stripCodeFence(text);
+    pushUndo();
+    const shape = board.pasteText(text);
+    if (!shape) {
+      undo();
+      setStatus("Nothing to paste");
+      return;
+    }
+    selectedId = shape.id;
+    render();
+    setStatus("Pasted");
+  });
+
+  sizeEl.addEventListener("change", () => {
+    const [rowsValue, colsValue] = sizeEl.value.split("x").map(Number);
+    if (rowsValue === board.rows && colsValue === board.cols) return;
+    pushUndo();
+    const next = Board.fromShapes(rowsValue, colsValue, board.shapes);
+    restore(next);
+    const hidden = next.shapes.some((shape) => !shapeFits(shape, next));
+    setStatus(hidden ? "Canvas resized · some content is outside the view" : "Canvas resized");
+  });
+
+  /** Reports whether a shape is fully inside the current canvas. */
+  function shapeFits(shape, target) {
+    if (shape.kind === "cells") {
+      return shape.cells.every((cell) => cell.row < target.rows && cell.col < target.cols);
+    }
+    if (shape.kind === "box") {
+      return shape.row + shape.height <= target.rows && shape.col + shape.width <= target.cols;
+    }
+    if (shape.kind === "h") return shape.row < target.rows && shape.col + shape.length <= target.cols;
+    if (shape.kind === "v") return shape.col < target.cols && shape.row + shape.length <= target.rows;
+    if (shape.kind === "text") {
+      const lines = shape.text.split("\n");
+      const width = Math.max(...lines.map((line) => line.length));
+      return shape.row + lines.length <= target.rows && shape.col + width <= target.cols;
+    }
+    return shape.row < target.rows && shape.col < target.cols;
+  }
+
+  root.ownerDocument.addEventListener("keydown", (event) => {
+    const target = event.target;
+    const inField = target?.tagName === "INPUT"
+      || target?.tagName === "TEXTAREA"
+      || target?.isContentEditable;
+    const mod = event.metaKey || event.ctrlKey;
+    if (inField) return;
+    if (mod && event.key.toLowerCase() === "z") {
+      event.preventDefault();
+      setStatus(event.shiftKey ? (redo() ? "Redone" : "Nothing to redo") : (undo() ? "Undone" : "Nothing to undo"));
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      selectedId = null;
+      dragStart = null;
+      dragPreview = null;
+      selectDrag = null;
+      outputEl.hidden = true;
+      render();
+      return;
+    }
+    if (mod && event.key === "[") {
+      if (!selectedId) return;
+      event.preventDefault();
+      pushUndo();
+      if (!board.reorder(selectedId, -1)) {
+        undo();
+        return;
+      }
+      render();
+      return;
+    }
+    if (mod && event.key === "]") {
+      if (!selectedId) return;
+      event.preventDefault();
+      pushUndo();
+      if (!board.reorder(selectedId, 1)) {
+        undo();
+        return;
+      }
+      render();
+      return;
+    }
+    if (event.key === "Delete" || event.key === "Backspace") {
+      if (!selectedId) return;
+      event.preventDefault();
+      pushUndo();
+      if (!board.remove(selectedId)) {
+        undo();
+        return;
+      }
+      selectedId = null;
+      render();
+      return;
+    }
+    if (selectedId && event.key.startsWith("Arrow")) {
+      const delta = {
+        ArrowUp: [-1, 0],
+        ArrowDown: [1, 0],
+        ArrowLeft: [0, -1],
+        ArrowRight: [0, 1],
+      }[event.key];
+      if (!delta) return;
+      event.preventDefault();
+      pushUndo();
+      board.move(selectedId, delta[0], delta[1]);
+      render();
+    }
+  });
+
+  function handleAction(action, button) {
+    if (action === "undo") return setStatus(undo() ? "Undone" : "Nothing to undo");
+    if (action === "redo") return setStatus(redo() ? "Redone" : "Nothing to redo");
+    if (action === "clear") {
+      if (board.shapes.length === 0) return setStatus("Nothing to clear");
+      pushUndo();
+      board.clear();
+      selectedId = null;
+      render();
+      return setStatus("Cleared");
+    }
+    if (action === "grid") {
+      gridLines = !gridLines;
+      gridEl.classList.toggle("is-gridless", !gridLines);
+      button.setAttribute("aria-pressed", String(gridLines));
+      savePreferences();
+      return;
+    }
+    if (action === "theme") {
+      applyTheme(theme === "light" ? "dark" : "light");
+      savePreferences();
+      return;
+    }
+    if (action === "copy") return copyMarkdown();
+  }
+
+  /** Applies one theme to the document and the toolbar control. */
+  function applyTheme(next) {
+    theme = next;
+    root.ownerDocument.documentElement.dataset.theme = theme;
+    const button = root.querySelector("[data-act=theme]");
+    if (!button) return;
+    button.title = theme === "light" ? "Dark mode" : "Light mode";
+    button.setAttribute("aria-label", button.title);
+    button.setAttribute("aria-pressed", String(theme === "dark"));
+  }
+
+  async function copyMarkdown() {
+    const markdown = board.toMarkdown();
+    if (!markdown) return setStatus("Nothing to copy");
+    try {
+      const clipboard = root.ownerDocument.defaultView.navigator.clipboard;
+      if (!clipboard?.writeText) throw new Error("Clipboard API unavailable");
+      await clipboard.writeText(markdown);
+      outputEl.hidden = true;
+      setStatus("Copied");
+    } catch {
+      const textarea = root.ownerDocument.createElement("textarea");
+      textarea.value = markdown;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      root.ownerDocument.body.append(textarea);
+      textarea.select();
+      const copied = root.ownerDocument.execCommand("copy");
+      textarea.remove();
+      if (copied) {
+        setStatus("Copied");
+        return;
+      }
+      outputEl.value = markdown;
+      outputEl.hidden = false;
+      setStatus("Copy unavailable · Markdown shown below");
+    }
+  }
+
+  const bridge = createHostBridge();
+  bridge.onHostContext = (context) => {
+    if (context?.theme === "dark" || context?.theme === "light") {
+      applyTheme(context.theme);
+    }
+  };
+  bridge.onToolInput = (params) => {
+    const args = params?.arguments ?? params;
+    if (!args || typeof args !== "object") return;
+    if (!Array.isArray(args.shapes) && !args.rows && !args.cols) return;
+    applyLayout(args);
+    setStatus("Loading layout…");
+  };
+  bridge.onToolResult = (result) => {
+    const data = result?.structuredContent;
+    if (!data) return;
+    applyLayout(data);
+    setStatus("Ready");
+  };
+
+  /** Replaces the board from a tool payload and resets per-document state. */
+  function applyLayout(data) {
+    undoStack = [];
+    redoStack = [];
+    board = Board.fromShapes(data.rows ?? board.rows, data.cols ?? board.cols, data.shapes ?? []);
+    selectedId = null;
+    pendingTextCell = null;
+    editingTextId = null;
+    selectDrag = null;
+    outputEl.hidden = true;
+    syncHistoryButtons();
+    render();
+  }
+  bridge.start();
+
+  setTool("select");
+  syncHistoryButtons();
+  render();
+
+  return {
+    get board() { return board; },
+    render,
+    undo,
+    redo,
+    setTool,
+  };
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+/** Removes one surrounding Markdown code fence, including longer fences. */
+function stripCodeFence(text) {
+  const lines = text.split("\n");
+  const openFence = lines[0]?.match(/^`{3,}$/);
+  const closeFence = lines.at(-1)?.match(/^`{3,}$/);
+  if (openFence && closeFence && openFence[0].length === closeFence[0].length) {
+    return lines.slice(1, -1).join("\n");
+  }
+  return text;
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[char]);
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value).replace(/`/g, "&#96;");
+}
+
+/** Minimal MCP Apps host bridge for the standard handshake and host events. */
+function createHostBridge() {
+  let nextId = 1;
+  const pending = new Map();
+  const api = { onToolResult: undefined, onToolInput: undefined, onHostContext: undefined, start };
+
+  function post(message) {
+    if (typeof window === "undefined" || window.parent === window) return;
+    window.parent.postMessage(message, "*");
+  }
+
+  function request(method, params, timeoutMs = 3000) {
+    return new Promise((resolve, reject) => {
+      if (typeof window === "undefined" || window.parent === window) {
+        reject(new Error("MCP Apps host unavailable"));
+        return;
+      }
+      const id = nextId++;
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`${method} timed out`));
+      }, timeoutMs);
+      pending.set(id, { resolve, reject, timer });
+      post({ jsonrpc: "2.0", id, method, params });
+    });
+  }
+
+  function onMessage(event) {
+    if (typeof window === "undefined" || event.source !== window.parent) return;
+    const message = event.data;
+    if (!message || message.jsonrpc !== "2.0") return;
+    if (typeof message.id === "number") {
+      const item = pending.get(message.id);
+      if (!item) return;
+      pending.delete(message.id);
+      clearTimeout(item.timer);
+      if (message.error) item.reject(new Error(message.error.message ?? "MCP Apps request failed"));
+      else item.resolve(message.result);
+      return;
+    }
+    if (message.method === "ui/notifications/tool-result") api.onToolResult?.(message.params);
+    if (message.method === "ui/notifications/tool-input") api.onToolInput?.(message.params);
+    if (message.method === "ui/notifications/host-context-changed") api.onHostContext?.(message.params);
+  }
+
+  async function start() {
+    if (typeof window === "undefined" || window.parent === window) return;
+    window.addEventListener("message", onMessage, { passive: true });
+    try {
+      await request("ui/initialize", {
+        appInfo: { name: "markwire", version: "1.0.0" },
+        appCapabilities: {},
+        protocolVersion: "2026-01-26",
+      });
+      post({ jsonrpc: "2.0", method: "ui/notifications/initialized", params: {} });
+    } catch {}
+  }
+
+  return api;
+}
+
+mountMarkWire(document.getElementById("markwire-root"), { Board, rows: 40, cols: 80, shapes: [] });
+</script>
+</body>
+</html>

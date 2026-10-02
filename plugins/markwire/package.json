@@ -1,0 +1,10 @@
+{
+  "name": "@retiredphysicist/markwire",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "MARKWIRE_ESBUILD=${MARKWIRE_ESBUILD:-esbuild} MARKWIRE_NODE_MODULES=${MARKWIRE_NODE_MODULES:-} node server/build.mjs",
+    "test": "node --test ui/*.test.mjs server/*.test.mjs"
+  }
+}
