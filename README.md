@@ -93,6 +93,8 @@ The editor supports select, text, box, line, arrow, pencil, eraser, button, inpu
 modal, dropdown, toggle, tabs, layers, properties, undo, redo, clear, grid toggle, dark mode, canvas
 sizes, and copy Markdown.
 
+![MarkWire editor](./plugins/markwire/assets/markwire-demo.webp)
+
 MarkWire also registers MCP App entrypoints, so Codex can surface it in the sidebar without a model
 call: `thread` opens it as a content tab beside the current conversation, and `global` opens it
 fullscreen from the primary sidebar.
