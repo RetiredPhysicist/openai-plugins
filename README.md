@@ -73,7 +73,7 @@ http_headers = { CF-Access-Client-Id = "your-client-id", CF-Access-Client-Secret
 Keep the `dejavu` name: it replaces the placeholder server the plugin ships with. The header pair is
 only for deployments behind Cloudflare Access; a server without Access needs just `url`.
 
-Set your server up first: [DejaVu](https://github.com/RetiredPhysicist/DejaVu).
+Set your server up first: [DejaVu](https://github.com/RealAlexandreAI/DejaVu).
 
 **Why this is a manual step.** Three constraints rule out shipping a working default:
 
