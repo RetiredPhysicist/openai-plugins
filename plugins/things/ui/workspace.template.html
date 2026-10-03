@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Things</title>
+<style>
+__STYLE__
+</style>
+</head>
+<body>
+<div id="things-root"></div>
+<script type="module">
+__SCRIPT__
+const bridge = createHostBridge();
+const workspace = mountThings(document.getElementById("things-root"), { bridge });
+bridge.onHostContext = (context) => {
+  if (context?.theme) document.documentElement.dataset.theme = context.theme;
+};
+bridge.onToolResult = (params) => {
+  const view = params?.structuredContent?.view;
+  if (view) workspace.selectView(view);
+};
+bridge.start().then(() => workspace.start());
+</script>
+</body>
+</html>

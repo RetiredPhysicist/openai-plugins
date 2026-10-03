@@ -1,0 +1,16 @@
+{
+  "name": "@retiredphysicist/things",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "THINGS_ESBUILD=${THINGS_ESBUILD:-esbuild} THINGS_NODE_MODULES=${THINGS_NODE_MODULES:-} node server/build.mjs",
+    "test": "node --test ui/*.test.mjs server/*.test.mjs"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/ext-apps": "2.0.3",
+    "@modelcontextprotocol/sdk": "1.32.0",
+    "esbuild": "0.28.2",
+    "zod": "4.6.5"
+  }
+}
