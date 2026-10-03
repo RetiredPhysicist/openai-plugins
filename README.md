@@ -8,6 +8,7 @@ Portable [Agent Plugins](https://agent-plugins.org/specification) for ChatGPT an
 | [all-search](./plugins/all-search) | None | Codex, ChatGPT |
 | [dejavu-memory](./plugins/dejavu-memory) | One config block | Codex |
 | [markwire](./plugins/markwire) | None | Codex |
+| [things](./plugins/things) | Things 3 | Codex |
 
 ## Install
 
@@ -26,9 +27,10 @@ Install any plugin from it:
 ```bash
 codex plugin marketplace add RetiredPhysicist/openai-plugins
 codex plugin add markwire@retiredphysicist
+codex plugin add things@retiredphysicist
 ```
 
-Replace `markwire` with `all-search` or `dejavu-memory` to install the others.
+Replace `markwire` with `all-search`, `dejavu-memory`, or `things` to install the others.
 
 ### Local checkout
 
@@ -104,6 +106,37 @@ MarkWire is an independent implementation inspired by the product idea of
 
 Toolbar icons are inlined from [Phosphor Icons](https://phosphoricons.com) (MIT).
 
+## things
+
+Things opens your Things 3 data in a Codex workspace: Inbox, Today, Upcoming, Anytime, Someday,
+projects, areas, tags, search, task details, quick add, and completion. It runs entirely on your
+Mac — no account, no cloud service, and no background helper.
+
+![The Things workspace in Codex](./plugins/things/assets/things-demo.webp)
+
+**Reads** go straight to the local Things database in read-only mode. **Writes** go through Things
+itself using its URL scheme, and every write is read back before the tool reports success.
+
+Install it like any other plugin, then open **Things** in the Codex sidebar:
+
+```bash
+codex plugin marketplace add RetiredPhysicist/openai-plugins
+codex plugin add things@retiredphysicist
+```
+
+Requirements:
+
+- macOS with Things 3 installed and opened at least once.
+- Node.js 22.5 or later, because the plugin uses the built-in `node:sqlite` module.
+- For updates, enable **Things → Settings → General → Enable Things URLs**, then **Manage** to turn
+  on authentication. Adding and reading to-dos works without it; editing and completing need it.
+
+Creating or renaming an area uses AppleScript, so macOS asks for automation permission the first
+time. Reads and to-do writes never need that permission.
+
+Things' automation surface cannot create repeat rules, cannot create standalone headings, and
+cannot delete items. Use the Things app for those.
+
 ## Layout
 
 Each plugin follows the v1.0.0 package model: a root `plugin.json` manifest, skills under `skills/`,
@@ -121,14 +154,21 @@ openai-plugins/
     │   ├── plugin.json
     │   ├── mcp.json
     │   └── skills/remember/SKILL.md
-    └── markwire/
+    ├── markwire/
+    │   ├── plugin.json
+    │   ├── mcp.json
+    │   ├── assets/
+    │   ├── server/
+    │   ├── skills/wireframe/SKILL.md
+    │   └── ui/
+    └── things/
         ├── plugin.json
         ├── mcp.json
         ├── assets/
         ├── server/
         │   ├── server.mjs
         │   └── src.mjs
-        ├── skills/wireframe/SKILL.md
+        ├── skills/things/SKILL.md
         └── ui/
 ```
 

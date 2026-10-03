@@ -1,0 +1,580 @@
+/**
+ * Things workspace shell.
+ *
+ * The workspace talks to the local MCP server through the host bridge, so all
+ * reads and writes go through the same verified tools the model uses. The
+ * layout follows Things 3: a coloured sidebar, plain task rows, project groups,
+ * and a detail inspector.
+ */
+
+const VIEWS = [
+  { id: "inbox", label: "Inbox", icon: "inbox", tone: "#3d7ef0" },
+  { id: "today", label: "Today", icon: "star", tone: "#f0b429" },
+  { id: "upcoming", label: "Upcoming", icon: "calendar", tone: "#e8503a" },
+  { id: "anytime", label: "Anytime", icon: "stack", tone: "#2aa6a0" },
+  { id: "someday", label: "Someday", icon: "box", tone: "#c9a227" },
+  { id: "logbook", label: "Logbook", icon: "check", tone: "#3d9d4f" },
+];
+
+const PROJECT_TONES = ["#3d7ef0", "#e8503a", "#2aa6a0", "#b06fd6", "#e08b2e", "#5a8f3d"];
+
+const ICONS = {
+  inbox: "M3.5 11h3l1 2h5l1-2h3M3.5 11l1.7-6.5h9.6L16.5 11v4.5h-13z",
+  star: "M10 3.6l1.9 3.9 4.3.6-3.1 3 .8 4.2-3.9-2-3.9 2 .8-4.2-3.1-3 4.3-.6z",
+  calendar: "M4 6.5h12v9H4zM4 9.5h12M7 4.5v3M13 4.5v3",
+  stack: "M10 3.6l6 3-6 3-6-3zM4 10l6 3 6-3M4 12.9l6 3 6-3",
+  box: "M3.6 6.4h12.8v3H3.6zM5 9.4v6h10v-6M8 11.6h4",
+  check: "M5 10.6l3 3 7-7",
+  chevron: "M8 6.2l3.8 3.8L8 13.8",
+  close: "M6 6l8 8M14 6l-8 8",
+  plus: "M10 5.2v9.6M5.2 10h9.6",
+  search: "M9 4.6a4.4 4.4 0 103 7.6L15 15.2",
+  tag: "M4.6 4.6h5.8l5 5-5.8 5.8-5-5zM7 7h.01",
+  circle: "M10 4.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11z",
+  refresh: "M15.2 10a5.2 5.2 0 11-1.6-3.7M15.2 4.2v3.1h-3.1",
+  trash: "M5.5 6.5h9M8 6.5V5h4v1.5M6.5 6.5l.6 8h5.8l.6-8",
+};
+
+function icon(name, { size = 16, color = "currentColor", fill = "none", strokeWidth = 1.6 } = {}) {
+  const path = ICONS[name];
+  if (!path) return "";
+  return `<svg width="${size}" height="${size}" viewBox="0 0 20 20" fill="${fill}"
+    stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round"
+    stroke-linejoin="round" aria-hidden="true"><path d="${path}"/></svg>`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function toneFor(id, index) {
+  if (!id) return PROJECT_TONES[index % PROJECT_TONES.length];
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) % 997;
+  return PROJECT_TONES[hash % PROJECT_TONES.length];
+}
+
+/** Minimal MCP Apps host bridge: handshake, host context, and tool calls. */
+export function createHostBridge(target = window.parent) {
+  let nextId = 1;
+  const pending = new Map();
+  const api = { onHostContext: null, onToolResult: null };
+
+  function post(message) {
+    target.postMessage(message, "*");
+  }
+
+  window.addEventListener("message", (event) => {
+    if (event.source !== target) return;
+    const message = event.data;
+    if (!message || message.jsonrpc !== "2.0") return;
+
+    if (message.id !== undefined && pending.has(message.id)) {
+      const { resolve, reject } = pending.get(message.id);
+      pending.delete(message.id);
+      if (message.error) reject(new Error(message.error.message ?? "Host request failed"));
+      else resolve(message.result);
+      return;
+    }
+    if (message.method === "ui/notifications/host-context-changed") {
+      api.onHostContext?.(message.params);
+    }
+    if (message.method === "ui/notifications/tool-result") {
+      api.onToolResult?.(message.params);
+    }
+  });
+
+  function request(method, params) {
+    const id = nextId++;
+    return new Promise((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+      post({ jsonrpc: "2.0", id, method, params });
+    });
+  }
+
+  return {
+    get onHostContext() {
+      return api.onHostContext;
+    },
+    set onHostContext(handler) {
+      api.onHostContext = handler;
+    },
+    get onToolResult() {
+      return api.onToolResult;
+    },
+    set onToolResult(handler) {
+      api.onToolResult = handler;
+    },
+    async start() {
+      const result = await request("ui/initialize", {
+        protocolVersion: "2026-01-26",
+        appInfo: { name: "things", version: "1.0.0" },
+        appCapabilities: {},
+      });
+      api.onHostContext?.(result?.hostContext);
+      post({ jsonrpc: "2.0", method: "ui/notifications/initialized", params: {} });
+      return result;
+    },
+    async callTool(name, args = {}) {
+      const result = await request("tools/call", { name, arguments: args });
+      if (result?.isError) {
+        const message = result.structuredContent?.error?.message
+          ?? result.content?.[0]?.text
+          ?? "Tool call failed";
+        throw new Error(message);
+      }
+      return result?.structuredContent ?? result;
+    },
+  };
+}
+
+function formatWhen(task) {
+  if (task.deadline) return task.deadline;
+  if (task.startDate && task.reminderTime) return `${task.startDate} ${task.reminderTime}`;
+  if (task.startDate) return task.startDate;
+  return "";
+}
+
+export function mountThings(root, { bridge }) {
+  const state = {
+    view: "today",
+    viewKind: "view",
+    viewLabel: "Today",
+    sidebar: { counts: {}, projects: [], areas: [], tags: [] },
+    tasks: [],
+    selected: null,
+    search: "",
+    groupByProject: true,
+    tagsOpen: false,
+    loading: true,
+    error: null,
+  };
+
+  root.innerHTML = `
+    <div class="tw-app">
+      <aside class="tw-side" id="tw-side"></aside>
+      <main class="tw-main">
+        <header class="tw-toolbar">
+          <div class="tw-title-wrap">
+            <span class="tw-title-icon" id="tw-title-icon"></span>
+            <div class="tw-title" id="tw-title">Today</div>
+          </div>
+          <div class="tw-toolbar-actions">
+            <label class="tw-search">
+              ${icon("search", { size: 14 })}
+              <input id="tw-search" type="search" placeholder="Search" aria-label="Search">
+            </label>
+            <button id="tw-refresh" class="tw-icon-btn" title="Refresh">${icon("refresh")}</button>
+            <button id="tw-add" class="tw-primary">${icon("plus", { size: 14 })}New To-Do</button>
+          </div>
+        </header>
+        <div class="tw-content">
+          <section class="tw-list" id="tw-list" aria-label="Tasks"></section>
+          <aside class="tw-detail" id="tw-detail" hidden></aside>
+        </div>
+      </main>
+    </div>
+    <div class="tw-toast" id="tw-toast" hidden></div>
+  `;
+
+  const els = {
+    side: root.querySelector("#tw-side"),
+    title: root.querySelector("#tw-title"),
+    titleIcon: root.querySelector("#tw-title-icon"),
+    list: root.querySelector("#tw-list"),
+    detail: root.querySelector("#tw-detail"),
+    search: root.querySelector("#tw-search"),
+    toast: root.querySelector("#tw-toast"),
+  };
+
+  function toast(message) {
+    els.toast.textContent = message;
+    els.toast.hidden = false;
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => {
+      els.toast.hidden = true;
+    }, 3200);
+  }
+
+  function renderSidebar() {
+    const { counts, projects, areas, tags } = state.sidebar;
+
+    const viewRows = VIEWS.map((view) => `
+      <button class="tw-side-row ${state.viewKind === "view" && state.view === view.id ? "is-active" : ""}"
+        data-view="${view.id}">
+        <span class="tw-side-icon" style="color:${view.tone}">${icon(view.icon, { size: 17 })}</span>
+        <span class="tw-side-label">${view.label}</span>
+        <span class="tw-side-count">${counts[view.id] ?? ""}</span>
+      </button>
+    `).join("");
+
+    const projectRows = projects.map((project, index) => `
+      <button class="tw-side-row ${state.viewKind === "project" && state.view === project.id ? "is-active" : ""}"
+        data-project="${project.id}" title="${escapeHtml(project.title)}">
+        <span class="tw-side-icon" style="color:${toneFor(project.id, index)}">
+          ${icon("circle", { size: 15, fill: toneFor(project.id, index), strokeWidth: 0 })}
+        </span>
+        <span class="tw-side-label">${escapeHtml(project.title)}</span>
+        <span class="tw-side-count">${project.openCount ?? ""}</span>
+      </button>
+    `).join("");
+
+    const areaRows = areas.map((area) => `
+      <div class="tw-side-row tw-side-area" title="${escapeHtml(area.title)}">
+        <span class="tw-side-icon" style="color:var(--tw-tertiary)">${icon("box", { size: 16 })}</span>
+        <span class="tw-side-label">${escapeHtml(area.title)}</span>
+        <span class="tw-side-count">${area.openCount ?? ""}</span>
+      </div>
+    `).join("");
+
+    const tagRows = state.tagsOpen
+      ? tags.map((tag) => `
+        <button class="tw-side-row ${state.viewKind === "tag" && state.view === tag.title ? "is-active" : ""}"
+          data-tag="${escapeHtml(tag.title)}">
+          <span class="tw-side-icon" style="color:var(--tw-tertiary)">${icon("tag", { size: 15 })}</span>
+          <span class="tw-side-label">${escapeHtml(tag.title)}</span>
+          <span class="tw-side-count">${tag.usage ?? ""}</span>
+        </button>
+      `).join("")
+      : "";
+
+    els.side.innerHTML = `
+      <nav class="tw-side-group">${viewRows}</nav>
+      <div class="tw-separator"></div>
+      ${projectRows}
+      ${areaRows}
+      ${tags.length ? `
+        <button class="tw-side-heading ${state.tagsOpen ? "is-open" : ""}" data-toggle-tags>
+          <span class="tw-chevron">${icon("chevron", { size: 12 })}</span>
+          <span>Tags</span>
+        </button>
+        ${tagRows}` : ""}
+    `;
+
+    els.side.querySelectorAll("[data-view]").forEach((button) => {
+      button.addEventListener("click", () => selectView(button.dataset.view));
+    });
+    els.side.querySelectorAll("[data-project]").forEach((button) => {
+      button.addEventListener("click", () => selectProject(button.dataset.project));
+    });
+    els.side.querySelectorAll("[data-tag]").forEach((button) => {
+      button.addEventListener("click", () => selectTag(button.dataset.tag));
+    });
+    els.side.querySelector("[data-toggle-tags]")?.addEventListener("click", () => {
+      state.tagsOpen = !state.tagsOpen;
+      renderSidebar();
+    });
+  }
+
+  function visibleTasks() {
+    const query = state.search.trim().toLowerCase();
+    if (!query) return state.tasks;
+    return state.tasks.filter((task) =>
+      task.title.toLowerCase().includes(query)
+      || (task.notes ?? "").toLowerCase().includes(query)
+      || (task.tags ?? []).some((tag) => tag.toLowerCase().includes(query)));
+  }
+
+  function taskRow(task) {
+    const when = formatWhen(task);
+    const tags = task.tags ?? [];
+    const metaParts = [];
+    if (when) metaParts.push(`<span>${when}</span>`);
+    if (tags.length) {
+      metaParts.push(
+        `<span class="tw-row-tags">${tags.map((tag) => `<span>#${escapeHtml(tag)}</span>`).join("")}</span>`,
+      );
+    }
+    return `
+      <article class="tw-row ${task.status === "completed" ? "is-done" : ""} ${state.selected?.id === task.id ? "is-selected" : ""}"
+        data-id="${task.id}" tabindex="0">
+        <button class="tw-check" data-complete="${task.id}" aria-label="Toggle complete">
+          ${task.status === "completed" ? icon("check", { size: 12, strokeWidth: 2.2 }) : ""}
+        </button>
+        <div class="tw-row-body">
+          <div class="tw-row-title">${escapeHtml(task.title)}</div>
+          ${metaParts.length ? `<div class="tw-row-meta">${metaParts.join("")}</div>` : ""}
+          ${task.notes ? `<div class="tw-row-notes">${escapeHtml(task.notes.split("\n")[0])}</div>` : ""}
+        </div>
+      </article>
+    `;
+  }
+
+  /** Group by project the way Things shows a day across multiple lists. */
+  function groupedMarkup(tasks) {
+    const groups = new Map();
+    for (const task of tasks) {
+      const key = task.project ?? task.area ?? "";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(task);
+    }
+    if (groups.size <= 1) return tasks.map(taskRow).join("");
+    return [...groups.entries()].map(([key, items]) => `
+      <div class="tw-group">
+        <span class="tw-group-dot" style="border-color:${key ? toneFor(items[0].projectId, 0) : "var(--tw-tertiary)"}"></span>
+        <span class="tw-group-name">${key ? escapeHtml(key) : "Other"}</span>
+        <span class="tw-group-rule"></span>
+      </div>
+      ${items.map(taskRow).join("")}
+    `).join("");
+  }
+
+  function renderList() {
+    const tasks = visibleTasks();
+    if (state.loading) {
+      els.list.innerHTML = `<div class="tw-empty">Loading\u2026</div>`;
+      return;
+    }
+    if (state.error) {
+      els.list.innerHTML = `<div class="tw-empty tw-error">${escapeHtml(state.error)}</div>`;
+      return;
+    }
+    if (!tasks.length) {
+      els.list.innerHTML = `<div class="tw-empty">Nothing here.</div>`;
+      return;
+    }
+    els.list.innerHTML = state.groupByProject
+      ? groupedMarkup(tasks)
+      : tasks.map(taskRow).join("");
+
+    els.list.querySelectorAll(".tw-row").forEach((row) => {
+      row.addEventListener("click", () => selectTask(row.dataset.id));
+      row.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") selectTask(row.dataset.id);
+      });
+    });
+    els.list.querySelectorAll("[data-complete]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleComplete(button.dataset.complete);
+      });
+    });
+  }
+
+  function renderDetail() {
+    const task = state.selected;
+    if (!task) {
+      els.detail.hidden = true;
+      return;
+    }
+    els.detail.hidden = false;
+    els.detail.innerHTML = `
+      <div class="tw-detail-head">
+        <div class="tw-detail-title">${escapeHtml(task.title)}</div>
+        <button class="tw-icon-btn" id="tw-close-detail" title="Close">${icon("close", { size: 14 })}</button>
+      </div>
+      <dl class="tw-fields">
+        <dt>Status</dt><dd>${task.status}</dd>
+        ${task.project ? `<dt>Project</dt><dd>${escapeHtml(task.project)}</dd>` : ""}
+        ${task.area ? `<dt>Area</dt><dd>${escapeHtml(task.area)}</dd>` : ""}
+        ${task.startDate ? `<dt>When</dt><dd>${task.startDate}${task.reminderTime ? ` ${task.reminderTime}` : ""}</dd>` : ""}
+        ${task.deadline ? `<dt>Deadline</dt><dd>${task.deadline}</dd>` : ""}
+        ${(task.tags ?? []).length ? `<dt>Tags</dt><dd>${task.tags.map(escapeHtml).join(", ")}</dd>` : ""}
+        ${task.repeating ? `<dt>Repeat</dt><dd>Yes</dd>` : ""}
+      </dl>
+      ${task.notes ? `<div class="tw-detail-notes">${escapeHtml(task.notes)}</div>` : ""}
+      ${(task.checklist ?? []).length ? `
+        <div class="tw-detail-section">Checklist</div>
+        <ul class="tw-checklist">
+          ${task.checklist.map((item) => `<li class="${item.completed ? "is-done" : ""}">${icon(item.completed ? "check" : "circle", { size: 13 })}${escapeHtml(item.title)}</li>`).join("")}
+        </ul>` : ""}
+      <div class="tw-detail-actions">
+        <button class="tw-secondary" data-open="${task.id}">Open in Things</button>
+        <button class="tw-secondary" data-complete-detail="${task.id}">
+          ${task.status === "completed" ? "Reopen" : "Complete"}
+        </button>
+      </div>
+    `;
+    els.detail.querySelector("#tw-close-detail").addEventListener("click", () => {
+      state.selected = null;
+      renderList();
+      renderDetail();
+    });
+    els.detail.querySelector("[data-open]").addEventListener("click", () => {
+      run(() => bridge.callTool("show_in_things", { id: task.id }));
+    });
+    els.detail.querySelector("[data-complete-detail]").addEventListener("click", () => {
+      toggleComplete(task.id, task.status !== "completed");
+    });
+  }
+
+  function renderTitle() {
+    els.title.textContent = state.viewLabel;
+    if (state.viewKind === "view") {
+      const view = VIEWS.find((item) => item.id === state.view);
+      els.titleIcon.innerHTML = view ? icon(view.icon, { size: 20, color: view.tone }) : "";
+      els.titleIcon.style.color = view?.tone ?? "";
+    } else if (state.viewKind === "project") {
+      els.titleIcon.innerHTML = icon("circle", { size: 18, fill: toneFor(state.view, 0), strokeWidth: 0 });
+      els.titleIcon.style.color = toneFor(state.view, 0);
+    } else {
+      els.titleIcon.innerHTML = icon("tag", { size: 18, color: "var(--tw-tertiary)" });
+      els.titleIcon.style.color = "";
+    }
+  }
+
+  function render() {
+    renderSidebar();
+    renderTitle();
+    renderList();
+    renderDetail();
+  }
+
+  async function run(action) {
+    try {
+      state.error = null;
+      return await action();
+    } catch (error) {
+      state.error = error.message;
+      toast(error.message);
+      render();
+      return null;
+    }
+  }
+
+  async function loadSidebar() {
+    state.sidebar = await bridge.callTool("get_sidebar");
+  }
+
+  async function loadTasks(view = state.view) {
+    state.loading = true;
+    render();
+    const result = await bridge.callTool("get_tasks", { view });
+    state.tasks = result.items ?? [];
+    state.loading = false;
+    render();
+  }
+
+  async function selectView(view) {
+    state.view = view;
+    state.viewKind = "view";
+    state.viewLabel = VIEWS.find((item) => item.id === view)?.label ?? "Things";
+    state.selected = null;
+    state.groupByProject = view !== "inbox";
+    await run(() => loadTasks(view));
+  }
+
+  async function selectProject(id) {
+    state.view = id;
+    state.viewKind = "project";
+    state.selected = null;
+    state.groupByProject = false;
+    await run(async () => {
+      state.loading = true;
+      render();
+      const result = await bridge.callTool("get_project", { id });
+      state.tasks = result.todos ?? [];
+      state.viewLabel = result.task?.title ?? "Project";
+      state.loading = false;
+      render();
+    });
+  }
+
+  async function selectTag(tag) {
+    state.view = tag;
+    state.viewKind = "tag";
+    state.viewLabel = `#${tag}`;
+    state.selected = null;
+    state.groupByProject = false;
+    await run(async () => {
+      state.loading = true;
+      render();
+      const result = await bridge.callTool("get_tagged", { tag });
+      state.tasks = result.items ?? [];
+      state.loading = false;
+      render();
+    });
+  }
+
+  async function selectTask(id) {
+    await run(async () => {
+      const result = await bridge.callTool("get_task", { id });
+      state.selected = result.task;
+      render();
+    });
+  }
+
+  async function toggleComplete(id, completed) {
+    await run(async () => {
+      const target = state.tasks.find((task) => task.id === id);
+      const next = completed ?? target?.status !== "completed";
+      await bridge.callTool("complete_todo", { id, completed: next });
+      await loadSidebar();
+      await loadTasks();
+      toast(next ? "Completed." : "Reopened.");
+    });
+  }
+
+  function openQuickAdd() {
+    if (root.querySelector(".tw-quickadd")) {
+      root.querySelector(".tw-quickadd input")?.focus();
+      return;
+    }
+    const panel = document.createElement("form");
+    panel.className = "tw-quickadd";
+    panel.innerHTML = `
+      <input name="title" type="text" placeholder="New to-do" autocomplete="off" required>
+      <div class="tw-quickadd-row">
+        <input name="when" type="text" placeholder="When (today, 2026-10-04)">
+        <input name="deadline" type="text" placeholder="Deadline">
+      </div>
+      <input name="tags" type="text" placeholder="Tags, comma separated">
+      <div class="tw-quickadd-actions">
+        <button type="button" class="tw-secondary" data-cancel>Cancel</button>
+        <button type="submit" class="tw-primary">Add</button>
+      </div>
+    `;
+    root.querySelector(".tw-app").appendChild(panel);
+    panel.querySelector('input[name="title"]').focus();
+    panel.querySelector("[data-cancel]").addEventListener("click", () => panel.remove());
+    panel.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const data = new FormData(panel);
+      const tags = String(data.get("tags") ?? "")
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+      run(async () => {
+        await bridge.callTool("add_todo", {
+          title: String(data.get("title") ?? "").trim(),
+          when: String(data.get("when") ?? "").trim() || undefined,
+          deadline: String(data.get("deadline") ?? "").trim() || undefined,
+          tags: tags.length ? tags : undefined,
+        });
+        panel.remove();
+        await loadSidebar();
+        await loadTasks();
+        toast("Added.");
+      });
+    });
+  }
+
+  els.search.addEventListener("input", (event) => {
+    state.search = event.target.value;
+    renderList();
+  });
+  root.querySelector("#tw-refresh").addEventListener("click", () => {
+    run(async () => {
+      await loadSidebar();
+      await loadTasks();
+    });
+  });
+  root.querySelector("#tw-add").addEventListener("click", openQuickAdd);
+
+  return {
+    async start() {
+      await run(async () => {
+        state.loading = true;
+        render();
+        await loadSidebar();
+        await loadTasks();
+      });
+    },
+    selectView,
+    getState: () => state,
+  };
+}
