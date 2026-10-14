@@ -41,6 +41,22 @@ function db() {
   return database;
 }
 
+/** Drops the cached connection at the next read; reads keep using it until then. */
+let databaseStale = false;
+
+function markDatabaseStale() {
+  databaseStale = true;
+}
+
+function dbFresh() {
+  if (databaseStale || !database) {
+    if (database) resetDatabase();
+    databaseStale = false;
+    database = new ThingsDatabase();
+  }
+  return database;
+}
+
 function resetDatabase() {
   if (database) {
     try {
@@ -119,19 +135,19 @@ const viewEnum = z.enum(["inbox", "today", "upcoming", "anytime", "someday", "lo
 function readView(view) {
   switch (view) {
     case "inbox":
-      return db().inbox();
+      return dbFresh().inbox();
     case "today":
-      return db().today();
+      return dbFresh().today();
     case "upcoming":
-      return db().upcoming();
+      return dbFresh().upcoming();
     case "anytime":
-      return db().anytime();
+      return dbFresh().anytime();
     case "someday":
-      return db().someday();
+      return dbFresh().someday();
     case "logbook":
-      return db().logbook();
+      return dbFresh().logbook();
     case "trash":
-      return db().trashed();
+      return dbFresh().trashed();
     default:
       throw new ThingsWriteError(`Unknown view: ${view}`, { code: "unknown_view" });
   }
@@ -242,7 +258,7 @@ export function createServer() {
     },
     async ({ view, limit }) => {
       try {
-        const items = db().withTags(readView(view));
+        const items = dbFresh().withTags(readView(view));
         const page = limit ? items.slice(0, limit) : items;
         return listResult(page, { total: items.length, view });
       } catch (error) {
@@ -266,10 +282,10 @@ export function createServer() {
         return {
           content: [{ type: "text", text: "Sidebar data." }],
           structuredContent: {
-            counts: db().counts(),
-            projects: db().projects(),
-            areas: db().areas(),
-            tags: db().tags(),
+            counts: dbFresh().counts(),
+            projects: dbFresh().projects(),
+            areas: dbFresh().areas(),
+            tags: dbFresh().tags(),
           },
         };
       } catch (error) {
@@ -290,7 +306,7 @@ export function createServer() {
     },
     async ({ id }) => {
       try {
-        const task = db().getTask(id);
+        const task = dbFresh().getTask(id);
         if (!task) {
           return {
             isError: true,
@@ -320,7 +336,7 @@ export function createServer() {
     },
     async ({ id }) => {
       try {
-        const task = db().getTask(id);
+        const task = dbFresh().getTask(id);
         if (!task) {
           return {
             isError: true,
@@ -350,9 +366,9 @@ export function createServer() {
     },
     async ({ tag }) => {
       try {
-        const items = db()
+        const items = dbFresh()
           .queryTasks({ extra: ["TASK.uuid IN (SELECT tasks FROM TMTaskTag JOIN TMTag ON TMTag.uuid = TMTaskTag.tags WHERE TMTag.title = ?)"], params: [tag] });
-        return listResult(db().withTags(items), { tag });
+        return listResult(dbFresh().withTags(items), { tag });
       } catch (error) {
         return failure(error);
       }
@@ -376,7 +392,7 @@ export function createServer() {
     async ({ query, includeCompleted, limit }) => {
       try {
         const effectiveIncludeCompleted = includeCompleted ?? settingsStore.searchIncludeCompleted;
-        const items = db().withTags(db().search(query, { includeCompleted: effectiveIncludeCompleted }));
+        const items = dbFresh().withTags(dbFresh().search(query, { includeCompleted: effectiveIncludeCompleted }));
         const page = items.slice(0, limit ?? settingsStore.pageSize);
         return listResult(page, { total: items.length, query });
       } catch (error) {
@@ -708,7 +724,7 @@ export function createServer() {
     update: async (set) => Object.assign(settingsStore, set),
   });
   openai.mentions.setHandler(async ({ query }) => {
-    const items = db().search(query, {
+    const items = dbFresh().search(query, {
       includeCompleted: settingsStore.searchIncludeCompleted,
     });
     return {

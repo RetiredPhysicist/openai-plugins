@@ -43,6 +43,14 @@ function icon(name, { size = 16, color = "currentColor", fill = "none", strokeWi
     stroke-linejoin="round" aria-hidden="true"><path d="${path}"/></svg>`;
 }
 
+/** Wraps query matches in <mark> after escaping both sides. */
+function highlightTitle(title, query) {
+  const safe = escapeHtml(title);
+  if (!query) return safe;
+  const pattern = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return safe.replace(new RegExp(`(${pattern})`, "gi"), "<mark>$1</mark>");
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -300,7 +308,7 @@ export function mountThings(root, { bridge }) {
           ${task.status === "completed" ? icon("check", { size: 12, strokeWidth: 2.2 }) : ""}
         </button>
         <div class="tw-row-body">
-          <div class="tw-row-title">${escapeHtml(task.title)}</div>
+          <div class="tw-row-title">${highlightTitle(task.title, state.search.trim())}</div>
           ${metaParts.length ? `<div class="tw-row-meta">${metaParts.join("")}</div>` : ""}
           ${task.notes ? `<div class="tw-row-notes">${escapeHtml(task.notes.split("\n")[0])}</div>` : ""}
         </div>
@@ -330,7 +338,14 @@ export function mountThings(root, { bridge }) {
   function renderList() {
     const tasks = visibleTasks();
     if (state.loading) {
-      els.list.innerHTML = `<div class="tw-empty">Loading\u2026</div>`;
+      els.list.innerHTML = Array.from({ length: 6 }, (_, i) => `
+        <article class="tw-row tw-skeleton" style="animation-delay: ${i * 60}ms">
+          <div class="tw-check"></div>
+          <div class="tw-row-body">
+            <div class="tw-skeleton-line"></div>
+            <div class="tw-skeleton-line tw-short"></div>
+          </div>
+        </article>`).join("");
       return;
     }
     if (state.error) {
@@ -499,11 +514,22 @@ export function mountThings(root, { bridge }) {
       const result = await bridge.callTool("get_task", { id });
       state.selected = result.task;
       render();
+      const task = result.task;
+      const contextParts = [`Selected task: ${task.title}`];
+      if (task.notes) contextParts.push(`Notes: ${task.notes}`);
+      const meta = [
+        task.project ? `project ${task.project}` : null,
+        task.area ? `area ${task.area}` : null,
+        task.deadline ? `deadline ${task.deadline}` : null,
+        task.startDate ? `start ${task.startDate}` : null,
+        (task.tags ?? []).length ? `tags ${task.tags.map((t) => `#${t}`).join(" ")}` : null,
+      ].filter(Boolean);
+      if (meta.length) contextParts.push(meta.join(" · "));
       bridge.request("ui/update-model-context", {
         content: [
           {
             type: "text",
-            text: `Selected task: ${result.task.title}`,
+            text: contextParts.join("\n"),
             _meta: { "openai/title": "Selected task" },
           },
         ],
@@ -515,10 +541,20 @@ export function mountThings(root, { bridge }) {
     await run(async () => {
       const target = state.tasks.find((task) => task.id === id);
       const next = completed ?? target?.status !== "completed";
-      await bridge.callTool("complete_todo", { id, completed: next });
-      await loadSidebar();
-      await loadTasks();
+      // Optimistic flip; reloaded server state is authoritative if it disagrees.
+      if (target) target.status = next ? "completed" : "open";
+      state.selected = state.selected?.id === id ? target : state.selected;
+      renderList();
+      try {
+        await bridge.callTool("complete_todo", { id, completed: next });
+      } catch (error) {
+        if (target) target.status = next ? "open" : "completed";
+        renderList();
+        throw error;
+      }
+      const refresh = Promise.all([loadSidebar(), loadTasks()]);
       toast(next ? "Completed." : "Reopened.");
+      await refresh;
     });
   }
 
@@ -533,6 +569,12 @@ export function mountThings(root, { bridge }) {
       <input name="title" type="text" placeholder="New to-do" autocomplete="off" required>
       <div class="tw-quickadd-row">
         <input name="when" type="text" placeholder="When (today, 2026-10-04)">
+        <div class="tw-when-chips">
+          <button type="button" data-when="tonight">Tonight</button>
+          <button type="button" data-when="tomorrow">Tomorrow</button>
+          <button type="button" data-when="evening">Evening</button>
+          <button type="button" data-when="someday">Someday</button>
+        </div>
         <input name="deadline" type="text" placeholder="Deadline">
       </div>
       <input name="tags" type="text" placeholder="Tags, comma separated">
@@ -542,6 +584,13 @@ export function mountThings(root, { bridge }) {
       </div>
     `;
     root.querySelector(".tw-app").appendChild(panel);
+    panel.querySelectorAll("[data-when]").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const whenInput = panel.querySelector('input[name="when"]');
+        whenInput.value = chip.dataset.when;
+        whenInput.focus();
+      });
+    });
     panel.querySelector('input[name="title"]').focus();
     panel.querySelector("[data-cancel]").addEventListener("click", () => panel.remove());
     panel.addEventListener("submit", (event) => {
@@ -566,9 +615,11 @@ export function mountThings(root, { bridge }) {
     });
   }
 
+  let searchTimer = null;
   els.search.addEventListener("input", (event) => {
     state.search = event.target.value;
-    renderList();
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => renderListOnly(), 150);
   });
   root.querySelector("#tw-refresh").addEventListener("click", () => {
     run(async () => {
