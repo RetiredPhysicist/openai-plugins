@@ -24,7 +24,7 @@
       "interface": {
         "displayName": "DejaVu Memory",
         "shortDescription": "Memory tree with a visual graph",
-        "longDescription": "DejaVu Memory gives ChatGPT and Codex a hierarchical, versioned memory tree. Store decisions, preferences, and reusable judgments once, then recall them with keyword or semantic search. The workspace includes an interactive force-directed graph of the memory tree with hybrid search and a content inspector. Data stays on your own DejaVu server; this bridge only proxies MCP calls with your Cloudflare Access service token.",
+        "longDescription": "DejaVu Memory gives ChatGPT and Codex a hierarchical, versioned memory tree. Store decisions, preferences, and reusable judgments once, then recall them with keyword or semantic search. The workspace includes an interactive graph of the memory tree with hybrid search, a content inspector, and subtree expansion. Data stays on your own DejaVu server, reached through its MCP endpoint.",
         "developerName": "RetiredPhysicist",
         "category": "Productivity",
         "capabilities": [
@@ -46,6 +46,5 @@
       "onboardingSkill": "./skills/remember/SKILL.md"
     }
   },
-  "mcpServers": "./mcp.json",
   "skills": "./skills/"
 }
