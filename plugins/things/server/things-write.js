@@ -48,6 +48,7 @@ export function normalizeWhen(when) {
   const keywords = new Set([
     "today",
     "tomorrow",
+    "tonight",
     "evening",
     "anytime",
     "someday",

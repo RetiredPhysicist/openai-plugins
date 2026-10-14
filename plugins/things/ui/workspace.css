@@ -29,6 +29,7 @@
   --tw-selected: rgba(255, 255, 255, 0.09);
   --tw-field: rgba(255, 255, 255, 0.08);
   --tw-danger: #ff453a;
+  --tw-skeleton: rgba(255, 255, 255, 0.1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -590,3 +591,36 @@ button.tw-side-heading:hover {
     width: 250px;
   }
 }
+
+.tw-skeleton .tw-skeleton-line {
+  height: 10px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--tw-skeleton) 25%, color-mix(in srgb, var(--tw-skeleton) 60%, var(--tw-text) 8%) 50%, var(--tw-skeleton) 75%);
+  background-size: 200% 100%;
+  animation: tw-shimmer 1.2s infinite;
+  width: 70%;
+}
+.tw-skeleton .tw-skeleton-line.tw-short { width: 45%; }
+.tw-skeleton { pointer-events: none; }
+@keyframes tw-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+.tw-row-title mark {
+  background: color-mix(in srgb, #f0b429 45%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.tw-when-chips { display: flex; gap: 4px; }
+.tw-when-chips button {
+  padding: 2px 8px;
+  border: 1px solid var(--tw-hairline);
+  border-radius: 999px;
+  background: var(--tw-field);
+  color: var(--tw-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+.tw-when-chips button:hover { color: var(--tw-text); background: var(--tw-hover); }

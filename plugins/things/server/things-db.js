@@ -483,15 +483,46 @@ export class ThingsDatabase {
    * and the list can never disagree.
    */
   counts() {
+    const { packed } = todayParts();
+    const visible = "TASK.trashed = 0 AND TASK.rt1_recurrenceRule IS NULL AND NOT IFNULL(PROJECT.trashed, 0) AND NOT IFNULL(PROJECT_OF_HEADING.trashed, 0)";
+    const row = this.get(
+      `SELECT
+        (SELECT COUNT(*) FROM TMTask TASK
+           LEFT JOIN TMTask PROJECT_OF_HEADING ON TASK.heading = PROJECT_OF_HEADING.uuid
+           LEFT JOIN TMTask PROJECT ON COALESCE(TASK.project, PROJECT_OF_HEADING.project) = PROJECT.uuid
+         WHERE ${visible} AND TASK.type = 0 AND TASK.status = 0 AND TASK.start = 0) AS inbox,
+        (SELECT COUNT(*) FROM TMTask TASK
+           LEFT JOIN TMTask PROJECT_OF_HEADING ON TASK.heading = PROJECT_OF_HEADING.uuid
+           LEFT JOIN TMTask PROJECT ON COALESCE(TASK.project, PROJECT_OF_HEADING.project) = PROJECT.uuid
+         WHERE ${visible} AND TASK.type = 0 AND TASK.status = 0
+           AND ((TASK.start = 1 AND TASK.startDate IS NOT NULL)
+             OR (TASK.start = 2 AND TASK.startDate IS NOT NULL AND TASK.startDate <= ?)
+             OR (TASK.startDate IS NULL AND TASK.deadline IS NOT NULL AND TASK.deadline <= ?
+                 AND (TASK.deadlineSuppressionDate IS NULL OR TASK.deadlineSuppressionDate = 0)))) AS today,
+        (SELECT COUNT(*) FROM TMTask TASK
+           LEFT JOIN TMTask PROJECT_OF_HEADING ON TASK.heading = PROJECT_OF_HEADING.uuid
+           LEFT JOIN TMTask PROJECT ON COALESCE(TASK.project, PROJECT_OF_HEADING.project) = PROJECT.uuid
+         WHERE ${visible} AND TASK.status = 0 AND TASK.startDate IS NOT NULL AND TASK.startDate > ?) AS upcoming,
+        (SELECT COUNT(*) FROM TMTask TASK
+           LEFT JOIN TMTask PROJECT_OF_HEADING ON TASK.heading = PROJECT_OF_HEADING.uuid
+           LEFT JOIN TMTask PROJECT ON COALESCE(TASK.project, PROJECT_OF_HEADING.project) = PROJECT.uuid
+         WHERE ${visible} AND TASK.type = 0 AND TASK.status = 0 AND TASK.start = 1) AS anytime,
+        (SELECT COUNT(*) FROM TMTask TASK
+           LEFT JOIN TMTask PROJECT_OF_HEADING ON TASK.heading = PROJECT_OF_HEADING.uuid
+           LEFT JOIN TMTask PROJECT ON COALESCE(TASK.project, PROJECT_OF_HEADING.project) = PROJECT.uuid
+         WHERE ${visible} AND TASK.type = 0 AND TASK.status = 0 AND TASK.start = 2 AND TASK.startDate IS NULL) AS someday
+      `,
+      [packed, packed, packed],
+    );
     return {
-      inbox: this.inbox().length,
-      today: this.today().length,
-      upcoming: this.upcoming().length,
-      anytime: this.anytime().length,
-      someday: this.someday().length,
+      inbox: row.inbox,
+      today: row.today,
+      upcoming: row.upcoming,
+      anytime: row.anytime,
+      someday: row.someday,
       projects: this.projects().length,
       areas: this.areas().length,
-      tags: this.tags().length,
+      tags: this.all(`SELECT COUNT(*) AS n FROM TMTag`)[0].n,
     };
   }
 }
