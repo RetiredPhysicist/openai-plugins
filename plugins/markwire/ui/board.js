@@ -60,6 +60,15 @@ export class Board {
   }
 
   /**
+   * Drops the derived grid after a caller mutated a shape in place.
+   * The editor's inspector writes shape fields directly, which cannot be
+   * intercepted, so it has to tell the board its cache is stale.
+   */
+  invalidate() {
+    this.#invalidate();
+  }
+
+  /**
    * One derived grid shared by toText/cellAt/armsAt. Entry layout:
    * [overlayChar, hasH, hasV, up, down, left, right]. overlayChar is the
    * topmost stroke/text/cells character at this cell, or null for pure lines.
@@ -356,17 +365,28 @@ export class Board {
    * Removes strokes inside a rectangle.
    *
    * Shapes are axis-aligned runs, so erasing trims or splits each run that
-   * overlaps the region instead of tracking pixels. Labels are dropped whole when
-   * their first cell falls inside the region.
+   * overlaps the region instead of tracking pixels. A rectangle only disappears
+   * when it is fully covered; a partial overlap is broken into its four runs
+   * first, which renders identically (the corners come from the run ends) and
+   * lets the eraser trim one border. Labels lose the characters inside the
+   * region; the row stays so the remaining text keeps its position.
    */
   erase(row, col, height, width) {
     const top = row;
     const bottom = row + height - 1;
     const left = col;
     const right = col + width - 1;
+    const kept = Board.#withoutOverlap(this.shapes, top, bottom, left, right);
+
+    this.shapes = kept;
+    this.#invalidate();
+  }
+
+  /** Applies one erase rectangle to a shape list, returning what survives. */
+  static #withoutOverlap(shapes, top, bottom, left, right) {
     const kept = [];
 
-    for (const shape of this.shapes) {
+    for (const shape of shapes) {
       if (shape.kind === "cells") {
         const cells = shape.cells.filter((cell) => !(
           cell.row >= top && cell.row <= bottom && cell.col >= left && cell.col <= right
@@ -375,23 +395,52 @@ export class Board {
         continue;
       }
 
-      if (shape.kind === "text" || shape.kind === "stroke") {
+      if (shape.kind === "text") {
+        const lines = shape.text.split("\n");
+        let changed = false;
+        const nextLines = lines.map((line, lineIndex) => {
+          const row = shape.row + lineIndex;
+          if (row < top || row > bottom) return line;
+          const chars = [...line];
+          for (let index = 0; index < chars.length; index++) {
+            if (chars[index] === " ") continue;
+            const col = shape.col + index;
+            if (col < left || col > right) continue;
+            // Blank the cell instead of removing it: the remaining characters
+            // keep their columns, and a space paints over any line beneath.
+            chars[index] = " ";
+            changed = true;
+          }
+          return chars.join("");
+        });
+        if (!changed) kept.push(shape);
+        else if (nextLines.some((line) => line.trim().length > 0)) {
+          kept.push({ ...shape, text: nextLines.join("\n") });
+        }
+        continue;
+      }
+
+      if (shape.kind === "stroke") {
         if (shape.row >= top && shape.row <= bottom && shape.col >= left && shape.col <= right) continue;
         kept.push(shape);
         continue;
       }
 
       if (shape.kind === "box") {
-        const shapeBottom = shape.row + shape.height - 1;
-        const shapeRight = shape.col + shape.width - 1;
-        if (
-          shape.row < top ||
-          shape.col < left ||
-          shapeBottom > bottom ||
-          shapeRight > right
-        ) {
-          kept.push(shape);
-          continue;
+        const edges = Board.#boxEdges(shape);
+        const surviving = Board.#withoutOverlap(edges, top, bottom, left, right);
+        // Only rebuild the rectangle when an edge was actually trimmed;
+        // otherwise the original stays as one selectable/resizable shape.
+        // Identity, not count: trimming one edge while splitting another keeps
+        // the count at four but still changes the outline.
+        const untouched = surviving.length === edges.length
+          && surviving.every((run, index) => run === edges[index]);
+        if (untouched) kept.push(shape);
+        // Each surviving run needs its own identity: selection, layers and
+        // inspector edits all key off id and the originals would collide.
+        // The component role carries over so the layers panel still names it.
+        else for (const run of surviving) {
+          kept.push({ ...run, id: Board.createShapeId(), role: shape.role });
         }
         continue;
       }
@@ -407,9 +456,9 @@ export class Board {
           kept.push(shape);
           continue;
         }
-        if (start < left) kept.push({ ...shape, length: left - start });
+        if (start < left) kept.push({ ...shape, id: Board.createShapeId(), length: left - start });
         if (end > right) {
-          kept.push({ ...shape, col: right + 1, length: end - right });
+          kept.push({ ...shape, id: Board.createShapeId(), col: right + 1, length: end - right });
         }
         continue;
       }
@@ -425,15 +474,30 @@ export class Board {
           kept.push(shape);
           continue;
         }
-        if (start < top) kept.push({ ...shape, length: top - start });
+        if (start < top) kept.push({ ...shape, id: Board.createShapeId(), length: top - start });
         if (end > bottom) {
-          kept.push({ ...shape, row: bottom + 1, length: end - bottom });
+          kept.push({ ...shape, id: Board.createShapeId(), row: bottom + 1, length: end - bottom });
         }
       }
     }
 
-    this.shapes = kept;
-    this.#invalidate();
+    return kept;
+  }
+
+  /**
+   * The four runs of a rectangle outline, in the same paint order the box
+   * renderer uses. Corner arms come from run ends, so a split box still draws
+   * ┌ ┐ └ ┘ exactly where the single box shape did.
+   */
+  static #boxEdges(shape) {
+    const bottom = shape.row + shape.height - 1;
+    const right = shape.col + shape.width - 1;
+    return [
+      { kind: "h", row: shape.row, col: shape.col, length: shape.width },
+      { kind: "h", row: bottom, col: shape.col, length: shape.width },
+      { kind: "v", row: shape.row, col: shape.col, length: shape.height },
+      { kind: "v", row: shape.row, col: right, length: shape.height },
+    ];
   }
 
   clear() {

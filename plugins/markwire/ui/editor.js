@@ -137,7 +137,10 @@ export function mountMarkWire(root, options) {
         </section>
       </aside>
       <nav class="mw-mobile-tools" aria-label="Tools"></nav>
-      <input class="mw-text-input" placeholder="Label text" aria-label="Label text" hidden>
+      <div class="mw-text-pop" hidden>
+        <input class="mw-text-input" placeholder="Label text" aria-label="Label text">
+        <button type="button" class="mw-text-close" title="Cancel label" aria-label="Cancel label">${icon("close")}</button>
+      </div>
       <textarea class="mw-output" readonly aria-label="Markdown output" hidden></textarea>
     </div>`;
 
@@ -150,6 +153,8 @@ export function mountMarkWire(root, options) {
   const inspectEl = root.querySelector(".mw-inspect");
   const sizeEl = root.querySelector(".mw-size-select");
   const textInputEl = root.querySelector(".mw-text-input");
+  const textPopEl = root.querySelector(".mw-text-pop");
+  const textCloseEl = root.querySelector(".mw-text-close");
   const outputEl = root.querySelector(".mw-output");
   const eraserSizeEl = root.querySelector(".mw-eraser-size");
   const eraserRangeEl = root.querySelector(".mw-eraser-size input");
@@ -215,6 +220,8 @@ export function mountMarkWire(root, options) {
     return button;
   }
 
+  // Cached cell metrics; cleared whenever the grid is rebuilt or resized.
+  let cellMetrics = null;
   let renderQueued = false;
   let pendingDirty = undefined;
   /** Coalesces render calls within one animation frame during continuous gestures. */
@@ -232,6 +239,31 @@ export function mountMarkWire(root, options) {
 
   let statusTimer = null;
   const TRANSIENT_STATUS = new Set(["Copied", "Added to chat draft", "New canvas", "Cleared", "Undone", "Redone", "Pasted"]);
+  const flashState = new Map();
+  /**
+   * Confirms an action on its own button. The status bar sits in the far
+   * bottom-left corner, which is easy to miss right after clicking a toolbar
+   * button at the top. The button's original markup is snapshotted once so a
+   * double click cannot capture the flashed state as the thing to restore.
+   */
+  function flashConfirmed(action, text) {
+    const button = root.querySelector(`[data-act=${action}]`);
+    if (!button) return;
+    let state = flashState.get(action);
+    if (!state) {
+      state = { html: button.innerHTML, className: button.className, timer: null };
+      flashState.set(action, state);
+    }
+    button.classList.add("is-confirmed");
+    button.innerHTML = `${icon("check")}${text}`;
+    if (state.timer) clearTimeout(state.timer);
+    state.timer = setTimeout(() => {
+      button.innerHTML = state.html;
+      button.className = state.className;
+      flashState.delete(action);
+    }, 1200);
+  }
+
   function setStatus(text) {
     statusEl.textContent = text;
     if (statusTimer) {
@@ -306,6 +338,7 @@ export function mountMarkWire(root, options) {
   }
 
   function setTool(tool) {
+    if (!textPopEl.hidden) closeTextEditor();
     activeTool = tool;
     dragStart = null;
     dragPreview = null;
@@ -453,7 +486,7 @@ export function mountMarkWire(root, options) {
       gridEl.replaceChildren(fragment);
     }
     gridEl.style.gridTemplateColumns = `repeat(${board.cols}, var(--mw-cell))`;
-  cellMetrics = null;
+    cellMetrics = null;
     const startRow = dirty ? Math.max(0, Math.min(dirty.top, dirty.bottom)) : 0;
     const endRow = dirty ? Math.min(board.rows - 1, Math.max(dirty.top, dirty.bottom)) : board.rows - 1;
     const startCol = dirty ? Math.max(0, Math.min(dirty.left, dirty.right)) : 0;
@@ -566,6 +599,9 @@ export function mountMarkWire(root, options) {
     if (shape[key] === value) return;
     pushUndo();
     shape[key] = value;
+    // The board derives its character grid from shape geometry and caches it,
+    // so an in-place edit has to invalidate that cache or nothing repaints.
+    board.invalidate();
     render();
   }
 
@@ -597,9 +633,7 @@ export function mountMarkWire(root, options) {
     }
     if (activeTool === "text") {
       pendingTextCell = cell;
-      textInputEl.hidden = false;
-      textInputEl.focus();
-      textInputEl.select();
+      openTextEditor(cell);
       setStatus("Type a label, then press Enter");
       return;
     }
@@ -659,7 +693,6 @@ export function mountMarkWire(root, options) {
     eraserPreviewEl.hidden = true;
   });
 
-  let cellMetrics = null;
   /** Cell size and canvas offset, re-read only when the grid is rebuilt or resized. */
   function cellSize() {
     if (cellMetrics) return cellMetrics;
@@ -724,10 +757,7 @@ export function mountMarkWire(root, options) {
     selectedId = hit.id;
     pendingTextCell = { row: hit.row, col: hit.col };
     editingTextId = hit.id;
-    textInputEl.value = hit.text;
-    textInputEl.hidden = false;
-    textInputEl.focus();
-    textInputEl.select();
+    openTextEditor(pendingTextCell, hit.text);
     setStatus("Edit label, then press Enter");
   });
 
@@ -751,20 +781,15 @@ export function mountMarkWire(root, options) {
   textInputEl.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       event.preventDefault();
-      pendingTextCell = null;
-      editingTextId = null;
-      textInputEl.value = "";
-      textInputEl.hidden = true;
+      closeTextEditor();
       setStatus("Text cancelled");
       return;
     }
     if (event.key !== "Enter") return;
     event.preventDefault();
     const value = textInputEl.value.trim();
-    if (!value || !pendingTextCell) {
-      setStatus("Enter text first");
-      return;
-    }
+    if (!value) return closeTextEditor();
+    if (!pendingTextCell) return closeTextEditor();
     pushUndo();
     const existing = editingTextId ? board.select(editingTextId) : null;
     const shape = existing ?? board.add({
@@ -773,15 +798,56 @@ export function mountMarkWire(root, options) {
       col: pendingTextCell.col,
       text: value,
     });
-    if (existing) existing.text = value;
+    if (existing) {
+      existing.text = value;
+      board.invalidate();
+    }
     selectedId = shape.id;
-    pendingTextCell = null;
-    editingTextId = null;
-    textInputEl.value = "";
-    textInputEl.hidden = true;
+    closeTextEditor();
     render();
     setStatus(existing ? "Text updated" : "Text added");
   });
+
+  /** Opens the label editor and moves focus into it after the click settles. */
+  function openTextEditor(cell, value = "") {
+    pendingTextCell = cell;
+    textInputEl.value = value;
+    textPopEl.hidden = false;
+    // Focusing synchronously does not stick: the pointerdown that opens this
+    // popup runs its focus default afterwards and drops focus back to body, so
+    // typing went nowhere. Defer past the event that caused it.
+    const view = root.ownerDocument.defaultView;
+    // requestAnimationFrame is a Window method: calling it detached throws, so
+    // bind it back to the view it came from.
+    const settle = view?.requestAnimationFrame
+      ? view.requestAnimationFrame.bind(view)
+      : (cb) => setTimeout(cb, 0);
+    settle(() => {
+      if (textPopEl.hidden) return;
+      textInputEl.focus({ preventScroll: true });
+      textInputEl.select();
+    });
+  }
+
+  function closeTextEditor() {
+    pendingTextCell = null;
+    editingTextId = null;
+    textInputEl.value = "";
+    textPopEl.hidden = true;
+  }
+
+  textCloseEl.addEventListener("click", () => {
+    closeTextEditor();
+    setStatus("Text cancelled");
+  });
+
+  // Clicking the canvas, chrome or a tool while the label editor is open ends
+  // the draft instead of leaving it floating over the board.
+  root.ownerDocument.addEventListener("pointerdown", (event) => {
+    if (textPopEl.hidden) return;
+    if (event.target.closest?.(".mw-text-pop")) return;
+    closeTextEditor();
+  }, { capture: true });
 
   root.ownerDocument.addEventListener("paste", (event) => {
     const target = event.target;
@@ -984,6 +1050,7 @@ export function mountMarkWire(root, options) {
       await clipboard.writeText(markdown);
       outputEl.hidden = true;
       setStatus("Copied");
+      flashConfirmed("copy", "Copied");
     } catch {
       const textarea = root.ownerDocument.createElement("textarea");
       textarea.value = markdown;
@@ -996,6 +1063,7 @@ export function mountMarkWire(root, options) {
       textarea.remove();
       if (copied) {
         setStatus("Copied");
+        flashConfirmed("copy", "Copied");
         return;
       }
       outputEl.value = markdown;
@@ -1015,6 +1083,7 @@ export function mountMarkWire(root, options) {
         _meta: { "openai/message": { target: "active", send: false } },
       });
       setStatus("Added to chat draft");
+      flashConfirmed("send", "Sent");
     } catch {
       setStatus("Draft unavailable in this host");
     }
@@ -1046,8 +1115,7 @@ export function mountMarkWire(root, options) {
     redoStack = [];
     board = Board.fromShapes(data.rows ?? board.rows, data.cols ?? board.cols, data.shapes ?? []);
     selectedId = null;
-    pendingTextCell = null;
-    editingTextId = null;
+    closeTextEditor();
     selectDrag = null;
     outputEl.hidden = true;
     syncHistoryButtons();

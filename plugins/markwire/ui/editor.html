@@ -13,6 +13,7 @@
   --mw-muted: #74777d;
   --mw-accent: #2563eb;
   --mw-danger: #dc2626;
+  --mw-success: #16a34a;
   --mw-cell: 9px;
   --mw-line: 19px;
   --mw-side: 192px;
@@ -26,6 +27,7 @@
   --mw-fg: #ececef;
   --mw-muted: #9ca0a8;
   --mw-accent: #60a5fa;
+  --mw-success: #22c55e;
 }
 
 * { box-sizing: border-box; }
@@ -150,21 +152,52 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-weight: 600;
 }
 .mw-toolbar .mw-primary:hover { background: color-mix(in srgb, var(--mw-accent) 88%, #000); color: #fff; }
-.mw-text-input {
+.mw-toolbar button.is-confirmed,
+.mw-toolbar button.is-confirmed:hover {
+  background: var(--mw-success);
+  color: #fff;
+}
+.mw-text-pop {
   position: fixed;
   left: 50%;
   bottom: 18px;
   z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: min(320px, 70vw);
-  padding: 8px 10px;
   transform: translateX(-50%);
+  padding: 6px;
   border: 1px solid var(--mw-accent);
   border-radius: 8px;
   background: var(--mw-bg);
-  color: var(--mw-fg);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
 }
-.mw-text-input[hidden] { display: none; }
+.mw-text-pop[hidden] { display: none; }
+.mw-text-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--mw-fg);
+  font: inherit;
+}
+.mw-text-input:focus { outline: none; }
+.mw-text-close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--mw-muted);
+  cursor: pointer;
+}
+.mw-text-close:hover { background: color-mix(in srgb, var(--mw-danger) 14%, transparent); color: var(--mw-danger); }
+.mw-text-close svg { width: 14px; height: 14px; display: block; }
 .mw-output {
   position: fixed;
   left: 50%;
@@ -346,7 +379,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .mw-toolbar::-webkit-scrollbar { display: none; }
   .mw-toolbar button { flex: 0 0 auto; }
   .mw-toolbar .mw-primary { margin-left: 0; }
-  .mw-text-input { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
+  .mw-text-pop { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
 }
 
 </style>
@@ -413,6 +446,15 @@ class Board {
   /** Drops the derived grid cache; every mutation calls this. */
   #invalidate() {
     this.#cache = null;
+  }
+
+  /**
+   * Drops the derived grid after a caller mutated a shape in place.
+   * The editor's inspector writes shape fields directly, which cannot be
+   * intercepted, so it has to tell the board its cache is stale.
+   */
+  invalidate() {
+    this.#invalidate();
   }
 
   /**
@@ -712,17 +754,28 @@ class Board {
    * Removes strokes inside a rectangle.
    *
    * Shapes are axis-aligned runs, so erasing trims or splits each run that
-   * overlaps the region instead of tracking pixels. Labels are dropped whole when
-   * their first cell falls inside the region.
+   * overlaps the region instead of tracking pixels. A rectangle only disappears
+   * when it is fully covered; a partial overlap is broken into its four runs
+   * first, which renders identically (the corners come from the run ends) and
+   * lets the eraser trim one border. Labels lose the characters inside the
+   * region; the row stays so the remaining text keeps its position.
    */
   erase(row, col, height, width) {
     const top = row;
     const bottom = row + height - 1;
     const left = col;
     const right = col + width - 1;
+    const kept = Board.#withoutOverlap(this.shapes, top, bottom, left, right);
+
+    this.shapes = kept;
+    this.#invalidate();
+  }
+
+  /** Applies one erase rectangle to a shape list, returning what survives. */
+  static #withoutOverlap(shapes, top, bottom, left, right) {
     const kept = [];
 
-    for (const shape of this.shapes) {
+    for (const shape of shapes) {
       if (shape.kind === "cells") {
         const cells = shape.cells.filter((cell) => !(
           cell.row >= top && cell.row <= bottom && cell.col >= left && cell.col <= right
@@ -731,23 +784,52 @@ class Board {
         continue;
       }
 
-      if (shape.kind === "text" || shape.kind === "stroke") {
+      if (shape.kind === "text") {
+        const lines = shape.text.split("\n");
+        let changed = false;
+        const nextLines = lines.map((line, lineIndex) => {
+          const row = shape.row + lineIndex;
+          if (row < top || row > bottom) return line;
+          const chars = [...line];
+          for (let index = 0; index < chars.length; index++) {
+            if (chars[index] === " ") continue;
+            const col = shape.col + index;
+            if (col < left || col > right) continue;
+            // Blank the cell instead of removing it: the remaining characters
+            // keep their columns, and a space paints over any line beneath.
+            chars[index] = " ";
+            changed = true;
+          }
+          return chars.join("");
+        });
+        if (!changed) kept.push(shape);
+        else if (nextLines.some((line) => line.trim().length > 0)) {
+          kept.push({ ...shape, text: nextLines.join("\n") });
+        }
+        continue;
+      }
+
+      if (shape.kind === "stroke") {
         if (shape.row >= top && shape.row <= bottom && shape.col >= left && shape.col <= right) continue;
         kept.push(shape);
         continue;
       }
 
       if (shape.kind === "box") {
-        const shapeBottom = shape.row + shape.height - 1;
-        const shapeRight = shape.col + shape.width - 1;
-        if (
-          shape.row < top ||
-          shape.col < left ||
-          shapeBottom > bottom ||
-          shapeRight > right
-        ) {
-          kept.push(shape);
-          continue;
+        const edges = Board.#boxEdges(shape);
+        const surviving = Board.#withoutOverlap(edges, top, bottom, left, right);
+        // Only rebuild the rectangle when an edge was actually trimmed;
+        // otherwise the original stays as one selectable/resizable shape.
+        // Identity, not count: trimming one edge while splitting another keeps
+        // the count at four but still changes the outline.
+        const untouched = surviving.length === edges.length
+          && surviving.every((run, index) => run === edges[index]);
+        if (untouched) kept.push(shape);
+        // Each surviving run needs its own identity: selection, layers and
+        // inspector edits all key off id and the originals would collide.
+        // The component role carries over so the layers panel still names it.
+        else for (const run of surviving) {
+          kept.push({ ...run, id: Board.createShapeId(), role: shape.role });
         }
         continue;
       }
@@ -763,9 +845,9 @@ class Board {
           kept.push(shape);
           continue;
         }
-        if (start < left) kept.push({ ...shape, length: left - start });
+        if (start < left) kept.push({ ...shape, id: Board.createShapeId(), length: left - start });
         if (end > right) {
-          kept.push({ ...shape, col: right + 1, length: end - right });
+          kept.push({ ...shape, id: Board.createShapeId(), col: right + 1, length: end - right });
         }
         continue;
       }
@@ -781,15 +863,30 @@ class Board {
           kept.push(shape);
           continue;
         }
-        if (start < top) kept.push({ ...shape, length: top - start });
+        if (start < top) kept.push({ ...shape, id: Board.createShapeId(), length: top - start });
         if (end > bottom) {
-          kept.push({ ...shape, row: bottom + 1, length: end - bottom });
+          kept.push({ ...shape, id: Board.createShapeId(), row: bottom + 1, length: end - bottom });
         }
       }
     }
 
-    this.shapes = kept;
-    this.#invalidate();
+    return kept;
+  }
+
+  /**
+   * The four runs of a rectangle outline, in the same paint order the box
+   * renderer uses. Corner arms come from run ends, so a split box still draws
+   * ┌ ┐ └ ┘ exactly where the single box shape did.
+   */
+  static #boxEdges(shape) {
+    const bottom = shape.row + shape.height - 1;
+    const right = shape.col + shape.width - 1;
+    return [
+      { kind: "h", row: shape.row, col: shape.col, length: shape.width },
+      { kind: "h", row: bottom, col: shape.col, length: shape.width },
+      { kind: "v", row: shape.row, col: shape.col, length: shape.height },
+      { kind: "v", row: shape.row, col: right, length: shape.height },
+    ];
   }
 
   clear() {
@@ -1140,6 +1237,15 @@ const ICONS = {
   copy: [
     "M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z",
   ],
+  check: [
+    "M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z",
+  ],
+  send: [
+    "M231.87,114l-168-95.89a16,16,0,0,0-24.1,19.64L60.26,128,39.77,218.26a16,16,0,0,0,24.1,19.64l168-95.89a16,16,0,0,0,0-28Z",
+  ],
+  close: [
+    "M208.49,191.51a8,8,0,0,1-11.32,11.32L128,133.66,58.83,202.83a8,8,0,0,1-11.32-11.32L116.69,128,47.51,58.83A8,8,0,0,1,58.83,47.51L128,116.69l69.17-69.18a8,8,0,0,1,11.32,11.32L139.31,128Z",
+  ],
 };
 
 /** Returns an inline 256x256 SVG that inherits the surrounding text color. */
@@ -1292,7 +1398,10 @@ function mountMarkWire(root, options) {
         </section>
       </aside>
       <nav class="mw-mobile-tools" aria-label="Tools"></nav>
-      <input class="mw-text-input" placeholder="Label text" aria-label="Label text" hidden>
+      <div class="mw-text-pop" hidden>
+        <input class="mw-text-input" placeholder="Label text" aria-label="Label text">
+        <button type="button" class="mw-text-close" title="Cancel label" aria-label="Cancel label">${icon("close")}</button>
+      </div>
       <textarea class="mw-output" readonly aria-label="Markdown output" hidden></textarea>
     </div>`;
 
@@ -1305,6 +1414,8 @@ function mountMarkWire(root, options) {
   const inspectEl = root.querySelector(".mw-inspect");
   const sizeEl = root.querySelector(".mw-size-select");
   const textInputEl = root.querySelector(".mw-text-input");
+  const textPopEl = root.querySelector(".mw-text-pop");
+  const textCloseEl = root.querySelector(".mw-text-close");
   const outputEl = root.querySelector(".mw-output");
   const eraserSizeEl = root.querySelector(".mw-eraser-size");
   const eraserRangeEl = root.querySelector(".mw-eraser-size input");
@@ -1370,6 +1481,8 @@ function mountMarkWire(root, options) {
     return button;
   }
 
+  // Cached cell metrics; cleared whenever the grid is rebuilt or resized.
+  let cellMetrics = null;
   let renderQueued = false;
   let pendingDirty = undefined;
   /** Coalesces render calls within one animation frame during continuous gestures. */
@@ -1387,6 +1500,31 @@ function mountMarkWire(root, options) {
 
   let statusTimer = null;
   const TRANSIENT_STATUS = new Set(["Copied", "Added to chat draft", "New canvas", "Cleared", "Undone", "Redone", "Pasted"]);
+  const flashState = new Map();
+  /**
+   * Confirms an action on its own button. The status bar sits in the far
+   * bottom-left corner, which is easy to miss right after clicking a toolbar
+   * button at the top. The button's original markup is snapshotted once so a
+   * double click cannot capture the flashed state as the thing to restore.
+   */
+  function flashConfirmed(action, text) {
+    const button = root.querySelector(`[data-act=${action}]`);
+    if (!button) return;
+    let state = flashState.get(action);
+    if (!state) {
+      state = { html: button.innerHTML, className: button.className, timer: null };
+      flashState.set(action, state);
+    }
+    button.classList.add("is-confirmed");
+    button.innerHTML = `${icon("check")}${text}`;
+    if (state.timer) clearTimeout(state.timer);
+    state.timer = setTimeout(() => {
+      button.innerHTML = state.html;
+      button.className = state.className;
+      flashState.delete(action);
+    }, 1200);
+  }
+
   function setStatus(text) {
     statusEl.textContent = text;
     if (statusTimer) {
@@ -1461,6 +1599,7 @@ function mountMarkWire(root, options) {
   }
 
   function setTool(tool) {
+    if (!textPopEl.hidden) closeTextEditor();
     activeTool = tool;
     dragStart = null;
     dragPreview = null;
@@ -1608,7 +1747,7 @@ function mountMarkWire(root, options) {
       gridEl.replaceChildren(fragment);
     }
     gridEl.style.gridTemplateColumns = `repeat(${board.cols}, var(--mw-cell))`;
-  cellMetrics = null;
+    cellMetrics = null;
     const startRow = dirty ? Math.max(0, Math.min(dirty.top, dirty.bottom)) : 0;
     const endRow = dirty ? Math.min(board.rows - 1, Math.max(dirty.top, dirty.bottom)) : board.rows - 1;
     const startCol = dirty ? Math.max(0, Math.min(dirty.left, dirty.right)) : 0;
@@ -1721,6 +1860,9 @@ function mountMarkWire(root, options) {
     if (shape[key] === value) return;
     pushUndo();
     shape[key] = value;
+    // The board derives its character grid from shape geometry and caches it,
+    // so an in-place edit has to invalidate that cache or nothing repaints.
+    board.invalidate();
     render();
   }
 
@@ -1752,9 +1894,7 @@ function mountMarkWire(root, options) {
     }
     if (activeTool === "text") {
       pendingTextCell = cell;
-      textInputEl.hidden = false;
-      textInputEl.focus();
-      textInputEl.select();
+      openTextEditor(cell);
       setStatus("Type a label, then press Enter");
       return;
     }
@@ -1814,7 +1954,6 @@ function mountMarkWire(root, options) {
     eraserPreviewEl.hidden = true;
   });
 
-  let cellMetrics = null;
   /** Cell size and canvas offset, re-read only when the grid is rebuilt or resized. */
   function cellSize() {
     if (cellMetrics) return cellMetrics;
@@ -1879,10 +2018,7 @@ function mountMarkWire(root, options) {
     selectedId = hit.id;
     pendingTextCell = { row: hit.row, col: hit.col };
     editingTextId = hit.id;
-    textInputEl.value = hit.text;
-    textInputEl.hidden = false;
-    textInputEl.focus();
-    textInputEl.select();
+    openTextEditor(pendingTextCell, hit.text);
     setStatus("Edit label, then press Enter");
   });
 
@@ -1906,20 +2042,15 @@ function mountMarkWire(root, options) {
   textInputEl.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       event.preventDefault();
-      pendingTextCell = null;
-      editingTextId = null;
-      textInputEl.value = "";
-      textInputEl.hidden = true;
+      closeTextEditor();
       setStatus("Text cancelled");
       return;
     }
     if (event.key !== "Enter") return;
     event.preventDefault();
     const value = textInputEl.value.trim();
-    if (!value || !pendingTextCell) {
-      setStatus("Enter text first");
-      return;
-    }
+    if (!value) return closeTextEditor();
+    if (!pendingTextCell) return closeTextEditor();
     pushUndo();
     const existing = editingTextId ? board.select(editingTextId) : null;
     const shape = existing ?? board.add({
@@ -1928,15 +2059,56 @@ function mountMarkWire(root, options) {
       col: pendingTextCell.col,
       text: value,
     });
-    if (existing) existing.text = value;
+    if (existing) {
+      existing.text = value;
+      board.invalidate();
+    }
     selectedId = shape.id;
-    pendingTextCell = null;
-    editingTextId = null;
-    textInputEl.value = "";
-    textInputEl.hidden = true;
+    closeTextEditor();
     render();
     setStatus(existing ? "Text updated" : "Text added");
   });
+
+  /** Opens the label editor and moves focus into it after the click settles. */
+  function openTextEditor(cell, value = "") {
+    pendingTextCell = cell;
+    textInputEl.value = value;
+    textPopEl.hidden = false;
+    // Focusing synchronously does not stick: the pointerdown that opens this
+    // popup runs its focus default afterwards and drops focus back to body, so
+    // typing went nowhere. Defer past the event that caused it.
+    const view = root.ownerDocument.defaultView;
+    // requestAnimationFrame is a Window method: calling it detached throws, so
+    // bind it back to the view it came from.
+    const settle = view?.requestAnimationFrame
+      ? view.requestAnimationFrame.bind(view)
+      : (cb) => setTimeout(cb, 0);
+    settle(() => {
+      if (textPopEl.hidden) return;
+      textInputEl.focus({ preventScroll: true });
+      textInputEl.select();
+    });
+  }
+
+  function closeTextEditor() {
+    pendingTextCell = null;
+    editingTextId = null;
+    textInputEl.value = "";
+    textPopEl.hidden = true;
+  }
+
+  textCloseEl.addEventListener("click", () => {
+    closeTextEditor();
+    setStatus("Text cancelled");
+  });
+
+  // Clicking the canvas, chrome or a tool while the label editor is open ends
+  // the draft instead of leaving it floating over the board.
+  root.ownerDocument.addEventListener("pointerdown", (event) => {
+    if (textPopEl.hidden) return;
+    if (event.target.closest?.(".mw-text-pop")) return;
+    closeTextEditor();
+  }, { capture: true });
 
   root.ownerDocument.addEventListener("paste", (event) => {
     const target = event.target;
@@ -2139,6 +2311,7 @@ function mountMarkWire(root, options) {
       await clipboard.writeText(markdown);
       outputEl.hidden = true;
       setStatus("Copied");
+      flashConfirmed("copy", "Copied");
     } catch {
       const textarea = root.ownerDocument.createElement("textarea");
       textarea.value = markdown;
@@ -2151,6 +2324,7 @@ function mountMarkWire(root, options) {
       textarea.remove();
       if (copied) {
         setStatus("Copied");
+        flashConfirmed("copy", "Copied");
         return;
       }
       outputEl.value = markdown;
@@ -2170,6 +2344,7 @@ function mountMarkWire(root, options) {
         _meta: { "openai/message": { target: "active", send: false } },
       });
       setStatus("Added to chat draft");
+      flashConfirmed("send", "Sent");
     } catch {
       setStatus("Draft unavailable in this host");
     }
@@ -2201,8 +2376,7 @@ function mountMarkWire(root, options) {
     redoStack = [];
     board = Board.fromShapes(data.rows ?? board.rows, data.cols ?? board.cols, data.shapes ?? []);
     selectedId = null;
-    pendingTextCell = null;
-    editingTextId = null;
+    closeTextEditor();
     selectDrag = null;
     outputEl.hidden = true;
     syncHistoryButtons();
