@@ -734,6 +734,9 @@ function createHostBridge(target = window.parent) {
       }
       return result?.structuredContent ?? result;
     },
+    request(method, params) {
+      return request(method, params);
+    },
   };
 }
 
@@ -753,6 +756,7 @@ function mountThings(root, { bridge }) {
     tasks: [],
     selected: null,
     search: "",
+    pageSize: 100,
     groupByProject: true,
     tagsOpen: false,
     loading: true,
@@ -1048,7 +1052,7 @@ function mountThings(root, { bridge }) {
   async function loadTasks(view = state.view) {
     state.loading = true;
     render();
-    const result = await bridge.callTool("get_tasks", { view });
+    const result = await bridge.callTool("get_tasks", { view, limit: state.pageSize });
     state.tasks = result.items ?? [];
     state.loading = false;
     render();
@@ -1100,6 +1104,15 @@ function mountThings(root, { bridge }) {
       const result = await bridge.callTool("get_task", { id });
       state.selected = result.task;
       render();
+      bridge.request("ui/update-model-context", {
+        content: [
+          {
+            type: "text",
+            text: `Selected task: ${result.task.title}`,
+            _meta: { "openai/title": "Selected task" },
+          },
+        ],
+      }).catch(() => {});
     });
   }
 
@@ -1173,6 +1186,12 @@ function mountThings(root, { bridge }) {
   return {
     async start() {
       await run(async () => {
+        try {
+          const settings = await bridge.callTool("settings.read", {});
+          const values = settings?.values;
+          if (VIEWS.some((view) => view.id === values?.defaultView)) state.view = values.defaultView;
+          if (typeof values?.pageSize === "number") state.pageSize = values.pageSize;
+        } catch {}
         state.loading = true;
         render();
         await loadSidebar();

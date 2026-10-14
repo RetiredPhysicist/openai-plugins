@@ -109,6 +109,7 @@ export function mountMarkWire(root, options) {
             <output>${eraserSize}</output>
           </label>
           <button class="mw-primary" data-act="copy">Copy Markdown</button>
+          <button data-act="send">Send to chat</button>
         </div>
         <div class="mw-canvas">
           <div class="mw-grid-wrap">
@@ -882,6 +883,7 @@ export function mountMarkWire(root, options) {
       return;
     }
     if (action === "copy") return copyMarkdown();
+    if (action === "send") return sendDraft();
   }
 
   /** Applies one theme to the document and the toolbar control. */
@@ -924,6 +926,22 @@ export function mountMarkWire(root, options) {
     }
   }
 
+  /** Appends the drawing to the host composer as an editable draft. */
+  async function sendDraft() {
+    const markdown = board.toMarkdown();
+    if (!markdown) return setStatus("Nothing to send");
+    try {
+      await bridge.request("ui/message", {
+        role: "user",
+        content: [{ type: "text", text: markdown }],
+        _meta: { "openai/message": { target: "active", send: false } },
+      });
+      setStatus("Added to chat draft");
+    } catch {
+      setStatus("Draft unavailable in this host");
+    }
+  }
+
   const bridge = createHostBridge();
   bridge.onHostContext = (context) => {
     if (context?.theme === "dark" || context?.theme === "light") {
@@ -957,7 +975,20 @@ export function mountMarkWire(root, options) {
     syncHistoryButtons();
     render();
   }
-  bridge.start();
+  bridge.start().then(async () => {
+    try {
+      const settings = await bridge.request("tools/call", { name: "settings.read", arguments: {} });
+      const values = settings?.structuredContent?.values;
+      const nextRows = Number(values?.defaultRows);
+      const nextCols = Number(values?.defaultCols);
+      if (Number.isInteger(nextRows) && Number.isInteger(nextCols)
+        && (nextRows !== board.rows || nextCols !== board.cols)
+        && board.shapes.length === 0) {
+        board = Board.fromShapes(nextRows, nextCols, []);
+        render();
+      }
+    } catch {}
+  });
 
   setTool("select");
   syncHistoryButtons();
@@ -1005,7 +1036,7 @@ function escapeAttr(value) {
 function createHostBridge() {
   let nextId = 1;
   const pending = new Map();
-  const api = { onToolResult: undefined, onToolInput: undefined, onHostContext: undefined, start };
+  const api = { onToolResult: undefined, onToolInput: undefined, onHostContext: undefined, request, start };
 
   function post(message) {
     if (typeof window === "undefined" || window.parent === window) return;
