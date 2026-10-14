@@ -28,6 +28,7 @@
         "developerName": "RetiredPhysicist",
         "category": "Productivity",
         "capabilities": [
+          "Interactive",
           "Read",
           "Write"
         ],
@@ -41,7 +42,8 @@
         "brandColor": "#6C5CE7",
         "composerIcon": "./assets/icon.svg",
         "logo": "./assets/icon.svg"
-      }
+      },
+      "onboardingSkill": "./skills/remember/SKILL.md"
     }
   },
   "mcpServers": "./mcp.json",
