@@ -61,8 +61,28 @@ http_headers = { Authorization = "Bearer as_sk_..." }
 
 ## dejavu-memory
 
-DejaVu runs on your own server, so this plugin needs to know where that server is. Add one block to
-`~/.codex/config.toml`:
+DejaVu runs on your own server. The plugin ships a local bridge that serves the memory graph UI and
+proxies tool calls to your deployment. Configure it with three environment variables (for example in
+`~/.codex/config.toml` under `[plugins.dejavu-memory@retiredphysicist].env`, or export them before
+starting Codex):
+
+```toml
+[plugins."dejavu-memory@retiredphysicist".env]
+DEJAVU_URL = "https://your-dejavu.example.com/mcp"
+DEJAVU_CLIENT_ID = "your-access-client-id"
+DEJAVU_CLIENT_SECRET = "your-access-client-secret"
+```
+
+`DEJAVU_CLIENT_ID`/`DEJAVU_CLIENT_SECRET` are a Cloudflare Access service token; skip them for a
+deployment without Access (the bridge sends plain posts).
+
+Open **DejaVu Memory** from the sidebar for an interactive graph of the memory tree: search highlights
+matching nodes, click a node to read it, double-click to expand its children, drag to rearrange,
+scroll to zoom. The model-facing tools (`read_memory`, `search_memory`, and the rest) are unchanged.
+
+Set your server up first: [DejaVu](https://github.com/RealAlexandreAI/DejaVu).
+
+**Why this is a manual step.** Three constraints rule out shipping a working default:
 
 ```toml
 [mcp_servers.dejavu]
