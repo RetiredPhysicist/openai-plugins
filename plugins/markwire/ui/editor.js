@@ -97,6 +97,7 @@ export function mountMarkWire(root, options) {
       <aside class="mw-side" id="mw-tools"></aside>
       <main class="mw-center">
         <div class="mw-toolbar">
+          <button data-act="toggle-side" class="mw-panel-toggle" title="Toggle tools" aria-label="Toggle tools panel" aria-expanded="true">${icon("list")}</button>
           <button data-act="undo" title="Undo (Ctrl+Z)" aria-label="Undo">${icon("undo")}</button>
           <button data-act="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">${icon("redo")}</button>
           <button data-act="clear" title="Clear Canvas" aria-label="Clear canvas">${icon("clear")}</button>
@@ -110,6 +111,7 @@ export function mountMarkWire(root, options) {
           </label>
           <button class="mw-primary" data-act="copy">Copy Markdown</button>
           <button data-act="send">Send to chat</button>
+          <button data-act="toggle-inspector" class="mw-panel-toggle" title="Toggle inspector" aria-label="Toggle inspector panel" aria-expanded="true">${icon("list")}</button>
         </div>
         <div class="mw-canvas">
           <div class="mw-grid-wrap">
@@ -213,8 +215,35 @@ export function mountMarkWire(root, options) {
     return button;
   }
 
+  let renderQueued = false;
+  let pendingDirty = undefined;
+  /** Coalesces render calls within one animation frame during continuous gestures. */
+  function requestRender(dirty) {
+    pendingDirty = dirty;
+    if (renderQueued) return;
+    renderQueued = true;
+    root.ownerDocument.defaultView?.requestAnimationFrame(() => {
+      renderQueued = false;
+      const dirtyArg = pendingDirty;
+      pendingDirty = undefined;
+      render(dirtyArg);
+    });
+  }
+
+  let statusTimer = null;
+  const TRANSIENT_STATUS = new Set(["Copied", "Added to chat draft", "New canvas", "Cleared", "Undone", "Redone", "Pasted"]);
   function setStatus(text) {
     statusEl.textContent = text;
+    if (statusTimer) {
+      clearTimeout(statusTimer);
+      statusTimer = null;
+    }
+    if (TRANSIENT_STATUS.has(text)) {
+      statusTimer = setTimeout(() => {
+        statusEl.textContent = "Ready";
+        statusTimer = null;
+      }, 2000);
+    }
   }
 
   function readPreferences() {
@@ -245,8 +274,8 @@ export function mountMarkWire(root, options) {
     syncHistoryButtons();
   }
 
-  function restore(next) {
-    board = next;
+  function restore(snapshotData) {
+    board = Board.fromShapes(snapshotData.rows, snapshotData.cols, snapshotData.shapes);
     selectedId = null;
     render();
   }
@@ -424,6 +453,7 @@ export function mountMarkWire(root, options) {
       gridEl.replaceChildren(fragment);
     }
     gridEl.style.gridTemplateColumns = `repeat(${board.cols}, var(--mw-cell))`;
+  cellMetrics = null;
     const startRow = dirty ? Math.max(0, Math.min(dirty.top, dirty.bottom)) : 0;
     const endRow = dirty ? Math.min(board.rows - 1, Math.max(dirty.top, dirty.bottom)) : board.rows - 1;
     const startCol = dirty ? Math.max(0, Math.min(dirty.left, dirty.right)) : 0;
@@ -598,7 +628,7 @@ export function mountMarkWire(root, options) {
       if (selectDrag.mode === "resize") board.resizeByGesture(selectDrag.id, dRow, dCol);
       else board.moveByGesture(selectDrag.id, dRow, dCol);
       selectDrag.start = cell;
-      render();
+      requestRender();
       return;
     }
     if (!dragStart) return;
@@ -619,30 +649,43 @@ export function mountMarkWire(root, options) {
       };
       dragStart.row = cell.row;
       dragStart.col = cell.col;
-      render(dirty);
+      requestRender(dirty);
       return;
     }
-    render();
+    requestRender();
   });
 
   gridEl.addEventListener("pointerleave", () => {
     eraserPreviewEl.hidden = true;
   });
 
+  let cellMetrics = null;
+  /** Cell size and canvas offset, re-read only when the grid is rebuilt or resized. */
+  function cellSize() {
+    if (cellMetrics) return cellMetrics;
+    const rect = gridEl.getBoundingClientRect();
+    cellMetrics = {
+      width: rect.width / board.cols,
+      height: rect.height / board.rows,
+      left: gridEl.offsetLeft,
+      top: gridEl.offsetTop,
+    };
+    return cellMetrics;
+  }
+
   /** Draws the square eraser footprint under the pointer. */
   function updateEraserPreview(cell) {
-    const cellWidth = gridEl.getBoundingClientRect().width / board.cols;
-    const cellHeight = gridEl.getBoundingClientRect().height / board.rows;
+    const metrics = cellSize();
     const offset = Math.floor((eraserSize - 1) / 2);
     const top = clamp(cell.row - offset, 0, board.rows - 1);
     const left = clamp(cell.col - offset, 0, board.cols - 1);
     const height = Math.min(eraserSize, board.rows - top);
     const width = Math.min(eraserSize, board.cols - left);
     eraserPreviewEl.hidden = false;
-    eraserPreviewEl.style.left = `${gridEl.offsetLeft + left * cellWidth}px`;
-    eraserPreviewEl.style.top = `${gridEl.offsetTop + top * cellHeight}px`;
-    eraserPreviewEl.style.width = `${width * cellWidth}px`;
-    eraserPreviewEl.style.height = `${height * cellHeight}px`;
+    eraserPreviewEl.style.left = `${metrics.left + left * metrics.width}px`;
+    eraserPreviewEl.style.top = `${metrics.top + top * metrics.height}px`;
+    eraserPreviewEl.style.width = `${width * metrics.width}px`;
+    eraserPreviewEl.style.height = `${height * metrics.height}px`;
   }
 
   gridEl.addEventListener("pointerup", (event) => {
@@ -764,9 +807,10 @@ export function mountMarkWire(root, options) {
     const [rowsValue, colsValue] = sizeEl.value.split("x").map(Number);
     if (rowsValue === board.rows && colsValue === board.cols) return;
     pushUndo();
-    const next = Board.fromShapes(rowsValue, colsValue, board.shapes);
-    restore(next);
-    const hidden = next.shapes.some((shape) => !shapeFits(shape, next));
+    board = Board.fromShapes(rowsValue, colsValue, board.shapes);
+    selectedId = null;
+    render();
+    const hidden = board.shapes.some((shape) => !shapeFits(shape, board));
     setStatus(hidden ? "Canvas resized · some content is outside the view" : "Canvas resized");
   });
 
@@ -794,7 +838,29 @@ export function mountMarkWire(root, options) {
       || target?.tagName === "TEXTAREA"
       || target?.isContentEditable;
     const mod = event.metaKey || event.ctrlKey;
+    if (mod && event.key.toLowerCase() === "n" && !inField) {
+      event.preventDefault();
+      if (board.shapes.length > 0) pushUndo();
+      board = Board.fromShapes(board.rows, board.cols, []);
+      selectedId = null;
+      undoStack = [];
+      redoStack = [];
+      syncHistoryButtons();
+      render();
+      setStatus("New canvas");
+      return;
+    }
+    if (mod && event.key === "Enter" && !inField) {
+      event.preventDefault();
+      sendDraft();
+      return;
+    }
     if (inField) return;
+    if (mod && event.key.toLowerCase() === "c" && !root.ownerDocument.getSelection()?.toString()) {
+      event.preventDefault();
+      copyMarkdown();
+      return;
+    }
     if (mod && event.key.toLowerCase() === "z") {
       event.preventDefault();
       setStatus(event.shiftKey ? (redo() ? "Redone" : "Nothing to redo") : (undo() ? "Undone" : "Nothing to undo"));
@@ -884,6 +950,18 @@ export function mountMarkWire(root, options) {
     }
     if (action === "copy") return copyMarkdown();
     if (action === "send") return sendDraft();
+    if (action === "toggle-side") return togglePanel(".mw-side", button);
+    if (action === "toggle-inspector") return togglePanel(".mw-inspector", button);
+  }
+
+  /** Shows or hides one side panel; the app element's data attributes drive the grid. */
+  function togglePanel(selector, button) {
+    const app = root.querySelector(".mw-app");
+    const key = selector.includes("side") ? "side" : "inspector";
+    const hidden = app.dataset[key] === "hidden";
+    if (hidden) delete app.dataset[key];
+    else app.dataset[key] = "hidden";
+    button.setAttribute("aria-expanded", String(hidden));
   }
 
   /** Applies one theme to the document and the toolbar control. */

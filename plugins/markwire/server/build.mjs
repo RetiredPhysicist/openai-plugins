@@ -36,6 +36,9 @@ const result = await build({
   legalComments: "none",
   minifyWhitespace: true,
   nodePaths,
+  // MCP SDKs stay external: they resolve from the plugin's node_modules at
+  // runtime, keeping the entry bundle (and cold start) small.
+  packages: "external",
   banner: { js: "#!/usr/bin/env node" },
   write: false,
   absWorkingDir: "/",

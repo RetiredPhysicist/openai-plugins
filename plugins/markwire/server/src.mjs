@@ -85,23 +85,34 @@ const wireframeInput = z.object({
     .array(z.discriminatedUnion("kind", [boxShape, horizontalShape, verticalShape, textShape, strokeShape, cellsShape]))
     .max(8000)
     .optional(),
+  /** Token from a previous open_wireframe result; replays those shapes under new ones. */
+  session: z.string().max(64).optional(),
 });
+
+/** One drawing per editor process; the token binds the model's next call to this canvas. */
+let activeSession = null;
 
 const wireframeOutput = z.object({
   rows: z.number().int(),
   cols: z.number().int(),
+  session: z.string(),
   shapes: z.array(z.record(z.string(), z.unknown())),
   markdown: z.string(),
 });
 
 function renderWireframe(args = {}) {
-  const rows = args.rows ?? 40;
-  const cols = args.cols ?? 80;
-  const shapes = args.shapes ?? [];
-  const board = Board.fromShapes(rows, cols, shapes);
+  const baseShapes = args.session && activeSession?.id === args.session ? activeSession.shapes : [];
+  const rows = args.rows ?? activeSession?.rows ?? 40;
+  const cols = args.cols ?? activeSession?.cols ?? 80;
+  const board = Board.fromShapes(rows, cols, [...baseShapes, ...(args.shapes ?? [])]);
+  const sessionId = args.session && activeSession?.id === args.session
+    ? args.session
+    : `mw-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  activeSession = { id: sessionId, rows, cols, shapes: board.toShapeList() };
   return {
     rows,
     cols,
+    session: sessionId,
     shapes: board.toShapeList(),
     markdown: board.toMarkdown(),
   };
@@ -137,7 +148,7 @@ export function createServer() {
     },
     {
       instructions:
-        "Use open_wireframe for ASCII wireframes, boxes, layout sketches, and quick UI diagrams. Pass shapes when the layout is known. The result includes Markdown that can be quoted directly and is already the finished drawing; do not re-render it.",
+        "Use open_wireframe for ASCII wireframes, boxes, layout sketches, and quick UI diagrams. Pass shapes when the layout is known. To edit the current drawing, pass its session token plus only the shapes that change. The result includes Markdown that can be quoted directly and is already the finished drawing; do not re-render it.",
     },
   );
 
