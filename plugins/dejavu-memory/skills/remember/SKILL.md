@@ -5,7 +5,7 @@ description: Store durable memories, recall them later, and keep the DejaVu memo
 
 # Remember with DejaVu
 
-DejaVu stores memory as a tree of versioned nodes addressed by URI (`noc://agent`, `noc://agent/deploy_pipeline`). Read before you write: the tree is the source of truth, and writing blind creates duplicates the user has to clean up.
+DejaVu stores memory as a tree of versioned nodes addressed by URI (`dejavu://agent`, `dejavu://agent/deploy_pipeline`). Read before you write: the tree is the source of truth, and writing blind creates duplicates the user has to clean up.
 
 ## Recall
 
