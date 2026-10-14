@@ -142,6 +142,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .mw-toolbar button:hover { background: color-mix(in srgb, var(--mw-fg) 7%, transparent); color: var(--mw-fg); }
 .mw-toolbar button[aria-pressed="true"] { background: color-mix(in srgb, var(--mw-accent) 14%, transparent); color: var(--mw-accent); }
 .mw-toolbar button:disabled { opacity: .25; cursor: default; }
+.mw-panel-toggle { display: none; }
 .mw-toolbar .mw-primary {
   margin-left: auto;
   background: var(--mw-accent);
@@ -286,6 +287,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 @media (max-width: 980px) {
   :root { --mw-side: 168px; --mw-right: 210px; }
+  .mw-panel-toggle { display: inline-flex; }
+  .mw-app[data-side="hidden"] { grid-template-columns: 0 minmax(0, 1fr) var(--mw-right); }
+  .mw-app[data-side="hidden"] .mw-side { display: none; }
+  .mw-app[data-inspector="hidden"] { grid-template-columns: var(--mw-side) minmax(0, 1fr) 0; }
+  .mw-app[data-inspector="hidden"] .mw-inspector { display: none; }
 }
 
 @media (max-width: 760px) {
@@ -399,6 +405,88 @@ class Board {
     this.rows = Math.max(1, Math.floor(rows));
     this.cols = Math.max(1, Math.floor(cols));
     this.shapes = [];
+    this.#cache = null;
+  }
+
+  #cache;
+
+  /** Drops the derived grid cache; every mutation calls this. */
+  #invalidate() {
+    this.#cache = null;
+  }
+
+  /**
+   * One derived grid shared by toText/cellAt/armsAt. Entry layout:
+   * [overlayChar, hasH, hasV, up, down, left, right]. overlayChar is the
+   * topmost stroke/text/cells character at this cell, or null for pure lines.
+   * Building is O(rows*cols + total shape cells), turning every read O(1).
+   */
+  #grid() {
+    if (this.#cache) return this.#cache;
+    const { rows, cols } = this;
+    const grid = new Array(rows * cols).fill(null);
+    for (const shape of this.shapes) {
+      if (shape.kind === "box") {
+        const bottom = shape.row + shape.height - 1;
+        const right = shape.col + shape.width - 1;
+        for (let col = shape.col; col <= right; col++) {
+          this.#markLine(grid, shape.row, col, true, col > shape.col, col < right);
+          this.#markLine(grid, bottom, col, true, col > shape.col, col < right);
+        }
+        for (let row = shape.row; row <= bottom; row++) {
+          this.#markLine(grid, row, shape.col, false, row > shape.row, row < bottom);
+          this.#markLine(grid, row, right, false, row > shape.row, row < bottom);
+        }
+      } else if (shape.kind === "h") {
+        for (let col = shape.col; col < shape.col + shape.length; col++) {
+          this.#markLine(grid, shape.row, col, true, col > shape.col, col < shape.col + shape.length - 1);
+        }
+      } else if (shape.kind === "v") {
+        for (let row = shape.row; row < shape.row + shape.length; row++) {
+          this.#markLine(grid, row, shape.col, false, row > shape.row, row < shape.row + shape.length - 1);
+        }
+      } else if (shape.kind === "stroke") {
+        const entry = this.#entry(grid, shape.row, shape.col);
+        entry[0] = shape.char;
+      } else if (shape.kind === "cells") {
+        for (const cell of shape.cells) {
+          const entry = this.#entry(grid, cell.row, cell.col);
+          entry[0] = cell.char;
+        }
+      } else if (shape.kind === "text") {
+        const lines = shape.text.split("\n");
+        for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+          const line = lines[lineIndex];
+          for (let charIndex = 0; charIndex < line.length; charIndex++) {
+            const entry = this.#entry(grid, shape.row + lineIndex, shape.col + charIndex);
+            if (entry) entry[0] = line[charIndex];
+          }
+        }
+      }
+    }
+    this.#cache = grid;
+    return grid;
+  }
+
+  #entry(grid, row, col) {
+    if (row < 0 || row >= this.rows || col < 0 || col >= this.cols) return null;
+    const index = row * this.cols + col;
+    if (!grid[index]) grid[index] = [null, false, false, false, false, false, false];
+    return grid[index];
+  }
+
+  #markLine(grid, row, col, hasH, left, right) {
+    const entry = this.#entry(grid, row, col);
+    if (!entry) return;
+    if (hasH) {
+      entry[1] = true;
+      if (left) entry[5] = true;
+      if (right) entry[6] = true;
+    } else {
+      entry[2] = true;
+      if (left) entry[3] = true;
+      if (right) entry[4] = true;
+    }
   }
 
   inBounds(row, col) {
@@ -418,6 +506,7 @@ class Board {
   add(shape) {
     const next = { id: shape.id ?? Board.createShapeId(), ...shape };
     this.shapes.push(next);
+    this.#invalidate();
     return next;
   }
 
@@ -433,7 +522,9 @@ class Board {
   remove(id) {
     const before = this.shapes.length;
     this.shapes = this.shapes.filter((shape) => shape.id !== id);
-    return this.shapes.length !== before;
+    const changed = this.shapes.length !== before;
+    if (changed) this.#invalidate();
+    return changed;
   }
 
   /** Moves a shape by row and column deltas. */
@@ -454,10 +545,12 @@ class Board {
         row: cell.row + rowDelta,
         col: cell.col + colDelta,
       }));
+      this.#invalidate();
       return true;
     }
     shape.row = Math.max(0, Math.min(this.rows - 1, shape.row + dRow));
     shape.col = Math.max(0, Math.min(this.cols - 1, shape.col + dCol));
+    this.#invalidate();
     return true;
   }
 
@@ -468,14 +561,17 @@ class Board {
     if (shape.kind === "box") {
       shape.width = Math.max(2, Math.min(this.cols - shape.col, width));
       shape.height = Math.max(2, Math.min(this.rows - shape.row, height));
+      this.#invalidate();
       return true;
     }
     if (shape.kind === "h") {
       shape.length = Math.max(1, Math.min(this.cols - shape.col, width));
+      this.#invalidate();
       return true;
     }
     if (shape.kind === "v") {
       shape.length = Math.max(1, Math.min(this.rows - shape.row, height));
+      this.#invalidate();
       return true;
     }
     return false;
@@ -693,72 +789,60 @@ class Board {
     }
 
     this.shapes = kept;
+    this.#invalidate();
   }
 
   clear() {
+    if (this.shapes.length === 0) return;
     this.shapes = [];
+    this.#invalidate();
   }
 
   undo() {
-    return this.shapes.pop() !== undefined;
+    const changed = this.shapes.pop() !== undefined;
+    if (changed) this.#invalidate();
+    return changed;
   }
 
   /** Strokes covering this cell, with the arms each run reaches within its own cells. */
   cellAt(row, col) {
-    const cell = { up: false, down: false, left: false, right: false, hasH: false, hasV: false };
-    for (const shape of this.shapes) {
-      if (shape.kind === "box") {
-        const bottom = shape.row + shape.height - 1;
-        const right = shape.col + shape.width - 1;
-        if (row === shape.row || row === bottom) {
-          if (col >= shape.col && col <= right) {
-            cell.hasH = true;
-            if (col > shape.col) cell.left = true;
-            if (col < right) cell.right = true;
-          }
-        }
-        if (col === shape.col || col === right) {
-          if (row >= shape.row && row <= bottom) {
-            cell.hasV = true;
-            if (row > shape.row) cell.up = true;
-            if (row < bottom) cell.down = true;
-          }
-        }
-      } else if (shape.kind === "h" && shape.row === row) {
-        if (col >= shape.col && col < shape.col + shape.length) {
-          cell.hasH = true;
-          // A run reaches past an edge only when another cell of the same run sits there.
-          if (col > shape.col) cell.left = true;
-          if (col < shape.col + shape.length - 1) cell.right = true;
-        }
-      } else if (shape.kind === "v" && shape.col === col) {
-        if (row >= shape.row && row < shape.row + shape.length) {
-          cell.hasV = true;
-          if (row > shape.row) cell.up = true;
-          if (row < shape.row + shape.length - 1) cell.down = true;
-        }
-      }
-    }
-    return cell;
+    const entry = this.#grid()[row * this.cols + col] ?? null;
+    return {
+      up: entry?.[3] ?? false,
+      down: entry?.[4] ?? false,
+      left: entry?.[5] ?? false,
+      right: entry?.[6] ?? false,
+      hasH: entry?.[1] ?? false,
+      hasV: entry?.[2] ?? false,
+    };
   }
 
   /** Arms for the final glyph, including joins where a perpendicular stroke crosses. */
   armsAt(row, col) {
-    const cell = this.cellAt(row, col);
-    const arms = { up: cell.up, down: cell.down, left: cell.left, right: cell.right };
+    const grid = this.#grid();
+    const read = (r, c) => grid[r * this.cols + c] ?? null;
+    const cell = read(row, col);
+    const arms = {
+      up: cell?.[3] ?? false,
+      down: cell?.[4] ?? false,
+      left: cell?.[5] ?? false,
+      right: cell?.[6] ?? false,
+    };
+    const hasH = cell?.[1] ?? false;
+    const hasV = cell?.[2] ?? false;
 
-    const above = this.inBounds(row - 1, col) ? this.cellAt(row - 1, col) : undefined;
-    const below = this.inBounds(row + 1, col) ? this.cellAt(row + 1, col) : undefined;
-    const prior = this.inBounds(row, col - 1) ? this.cellAt(row, col - 1) : undefined;
-    const next = this.inBounds(row, col + 1) ? this.cellAt(row, col + 1) : undefined;
+    const above = row > 0 ? read(row - 1, col) : null;
+    const below = row < this.rows - 1 ? read(row + 1, col) : null;
+    const prior = col > 0 ? read(row, col - 1) : null;
+    const next = col < this.cols - 1 ? read(row, col + 1) : null;
 
-    if (cell.hasH) {
-      if (above?.hasV) arms.up = true;
-      if (below?.hasV) arms.down = true;
+    if (hasH) {
+      if (above?.[2]) arms.up = true;
+      if (below?.[2]) arms.down = true;
     }
-    if (cell.hasV) {
-      if (prior?.hasH) arms.left = true;
-      if (next?.hasH) arms.right = true;
+    if (hasV) {
+      if (prior?.[1]) arms.left = true;
+      if (next?.[1]) arms.right = true;
     }
     return arms;
   }
@@ -766,30 +850,9 @@ class Board {
   /** Resolves one cell to its final character. */
   at(row, col) {
     if (!this.inBounds(row, col)) return " ";
-
-    for (let i = this.shapes.length - 1; i >= 0; i--) {
-      const shape = this.shapes[i];
-      if (shape.kind === "stroke") {
-        if (shape.row === row && shape.col === col) return shape.char;
-        continue;
-      }
-      if (shape.kind === "cells") {
-        const cell = shape.cells.find((item) => item.row === row && item.col === col);
-        if (cell) return cell.char;
-        continue;
-      }
-      if (shape.kind !== "text") continue;
-      const lines = shape.text.split("\n");
-      const lineIndex = row - shape.row;
-      if (lineIndex < 0 || lineIndex >= lines.length) continue;
-      const line = lines[lineIndex];
-      const charIndex = col - shape.col;
-      if (charIndex < 0 || charIndex >= line.length) continue;
-      return line[charIndex];
-    }
-
-    const cell = this.cellAt(row, col);
-    const axis = cell.hasH ? "h" : cell.hasV ? "v" : undefined;
+    const entry = this.#grid()[row * this.cols + col];
+    if (entry && entry[0] !== null) return entry[0];
+    const axis = entry?.[1] ? "h" : entry?.[2] ? "v" : undefined;
     return glyphFor(this.armsAt(row, col), axis);
   }
 
@@ -1189,6 +1252,7 @@ function mountMarkWire(root, options) {
       <aside class="mw-side" id="mw-tools"></aside>
       <main class="mw-center">
         <div class="mw-toolbar">
+          <button data-act="toggle-side" class="mw-panel-toggle" title="Toggle tools" aria-label="Toggle tools panel" aria-expanded="true">${icon("list")}</button>
           <button data-act="undo" title="Undo (Ctrl+Z)" aria-label="Undo">${icon("undo")}</button>
           <button data-act="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">${icon("redo")}</button>
           <button data-act="clear" title="Clear Canvas" aria-label="Clear canvas">${icon("clear")}</button>
@@ -1202,6 +1266,7 @@ function mountMarkWire(root, options) {
           </label>
           <button class="mw-primary" data-act="copy">Copy Markdown</button>
           <button data-act="send">Send to chat</button>
+          <button data-act="toggle-inspector" class="mw-panel-toggle" title="Toggle inspector" aria-label="Toggle inspector panel" aria-expanded="true">${icon("list")}</button>
         </div>
         <div class="mw-canvas">
           <div class="mw-grid-wrap">
@@ -1305,8 +1370,35 @@ function mountMarkWire(root, options) {
     return button;
   }
 
+  let renderQueued = false;
+  let pendingDirty = undefined;
+  /** Coalesces render calls within one animation frame during continuous gestures. */
+  function requestRender(dirty) {
+    pendingDirty = dirty;
+    if (renderQueued) return;
+    renderQueued = true;
+    root.ownerDocument.defaultView?.requestAnimationFrame(() => {
+      renderQueued = false;
+      const dirtyArg = pendingDirty;
+      pendingDirty = undefined;
+      render(dirtyArg);
+    });
+  }
+
+  let statusTimer = null;
+  const TRANSIENT_STATUS = new Set(["Copied", "Added to chat draft", "New canvas", "Cleared", "Undone", "Redone", "Pasted"]);
   function setStatus(text) {
     statusEl.textContent = text;
+    if (statusTimer) {
+      clearTimeout(statusTimer);
+      statusTimer = null;
+    }
+    if (TRANSIENT_STATUS.has(text)) {
+      statusTimer = setTimeout(() => {
+        statusEl.textContent = "Ready";
+        statusTimer = null;
+      }, 2000);
+    }
   }
 
   function readPreferences() {
@@ -1337,8 +1429,8 @@ function mountMarkWire(root, options) {
     syncHistoryButtons();
   }
 
-  function restore(next) {
-    board = next;
+  function restore(snapshotData) {
+    board = Board.fromShapes(snapshotData.rows, snapshotData.cols, snapshotData.shapes);
     selectedId = null;
     render();
   }
@@ -1516,6 +1608,7 @@ function mountMarkWire(root, options) {
       gridEl.replaceChildren(fragment);
     }
     gridEl.style.gridTemplateColumns = `repeat(${board.cols}, var(--mw-cell))`;
+  cellMetrics = null;
     const startRow = dirty ? Math.max(0, Math.min(dirty.top, dirty.bottom)) : 0;
     const endRow = dirty ? Math.min(board.rows - 1, Math.max(dirty.top, dirty.bottom)) : board.rows - 1;
     const startCol = dirty ? Math.max(0, Math.min(dirty.left, dirty.right)) : 0;
@@ -1690,7 +1783,7 @@ function mountMarkWire(root, options) {
       if (selectDrag.mode === "resize") board.resizeByGesture(selectDrag.id, dRow, dCol);
       else board.moveByGesture(selectDrag.id, dRow, dCol);
       selectDrag.start = cell;
-      render();
+      requestRender();
       return;
     }
     if (!dragStart) return;
@@ -1711,30 +1804,43 @@ function mountMarkWire(root, options) {
       };
       dragStart.row = cell.row;
       dragStart.col = cell.col;
-      render(dirty);
+      requestRender(dirty);
       return;
     }
-    render();
+    requestRender();
   });
 
   gridEl.addEventListener("pointerleave", () => {
     eraserPreviewEl.hidden = true;
   });
 
+  let cellMetrics = null;
+  /** Cell size and canvas offset, re-read only when the grid is rebuilt or resized. */
+  function cellSize() {
+    if (cellMetrics) return cellMetrics;
+    const rect = gridEl.getBoundingClientRect();
+    cellMetrics = {
+      width: rect.width / board.cols,
+      height: rect.height / board.rows,
+      left: gridEl.offsetLeft,
+      top: gridEl.offsetTop,
+    };
+    return cellMetrics;
+  }
+
   /** Draws the square eraser footprint under the pointer. */
   function updateEraserPreview(cell) {
-    const cellWidth = gridEl.getBoundingClientRect().width / board.cols;
-    const cellHeight = gridEl.getBoundingClientRect().height / board.rows;
+    const metrics = cellSize();
     const offset = Math.floor((eraserSize - 1) / 2);
     const top = clamp(cell.row - offset, 0, board.rows - 1);
     const left = clamp(cell.col - offset, 0, board.cols - 1);
     const height = Math.min(eraserSize, board.rows - top);
     const width = Math.min(eraserSize, board.cols - left);
     eraserPreviewEl.hidden = false;
-    eraserPreviewEl.style.left = `${gridEl.offsetLeft + left * cellWidth}px`;
-    eraserPreviewEl.style.top = `${gridEl.offsetTop + top * cellHeight}px`;
-    eraserPreviewEl.style.width = `${width * cellWidth}px`;
-    eraserPreviewEl.style.height = `${height * cellHeight}px`;
+    eraserPreviewEl.style.left = `${metrics.left + left * metrics.width}px`;
+    eraserPreviewEl.style.top = `${metrics.top + top * metrics.height}px`;
+    eraserPreviewEl.style.width = `${width * metrics.width}px`;
+    eraserPreviewEl.style.height = `${height * metrics.height}px`;
   }
 
   gridEl.addEventListener("pointerup", (event) => {
@@ -1856,9 +1962,10 @@ function mountMarkWire(root, options) {
     const [rowsValue, colsValue] = sizeEl.value.split("x").map(Number);
     if (rowsValue === board.rows && colsValue === board.cols) return;
     pushUndo();
-    const next = Board.fromShapes(rowsValue, colsValue, board.shapes);
-    restore(next);
-    const hidden = next.shapes.some((shape) => !shapeFits(shape, next));
+    board = Board.fromShapes(rowsValue, colsValue, board.shapes);
+    selectedId = null;
+    render();
+    const hidden = board.shapes.some((shape) => !shapeFits(shape, board));
     setStatus(hidden ? "Canvas resized · some content is outside the view" : "Canvas resized");
   });
 
@@ -1886,7 +1993,29 @@ function mountMarkWire(root, options) {
       || target?.tagName === "TEXTAREA"
       || target?.isContentEditable;
     const mod = event.metaKey || event.ctrlKey;
+    if (mod && event.key.toLowerCase() === "n" && !inField) {
+      event.preventDefault();
+      if (board.shapes.length > 0) pushUndo();
+      board = Board.fromShapes(board.rows, board.cols, []);
+      selectedId = null;
+      undoStack = [];
+      redoStack = [];
+      syncHistoryButtons();
+      render();
+      setStatus("New canvas");
+      return;
+    }
+    if (mod && event.key === "Enter" && !inField) {
+      event.preventDefault();
+      sendDraft();
+      return;
+    }
     if (inField) return;
+    if (mod && event.key.toLowerCase() === "c" && !root.ownerDocument.getSelection()?.toString()) {
+      event.preventDefault();
+      copyMarkdown();
+      return;
+    }
     if (mod && event.key.toLowerCase() === "z") {
       event.preventDefault();
       setStatus(event.shiftKey ? (redo() ? "Redone" : "Nothing to redo") : (undo() ? "Undone" : "Nothing to undo"));
@@ -1976,6 +2105,18 @@ function mountMarkWire(root, options) {
     }
     if (action === "copy") return copyMarkdown();
     if (action === "send") return sendDraft();
+    if (action === "toggle-side") return togglePanel(".mw-side", button);
+    if (action === "toggle-inspector") return togglePanel(".mw-inspector", button);
+  }
+
+  /** Shows or hides one side panel; the app element's data attributes drive the grid. */
+  function togglePanel(selector, button) {
+    const app = root.querySelector(".mw-app");
+    const key = selector.includes("side") ? "side" : "inspector";
+    const hidden = app.dataset[key] === "hidden";
+    if (hidden) delete app.dataset[key];
+    else app.dataset[key] = "hidden";
+    button.setAttribute("aria-expanded", String(hidden));
   }
 
   /** Applies one theme to the document and the toolbar control. */

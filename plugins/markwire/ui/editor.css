@@ -135,6 +135,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .mw-toolbar button:hover { background: color-mix(in srgb, var(--mw-fg) 7%, transparent); color: var(--mw-fg); }
 .mw-toolbar button[aria-pressed="true"] { background: color-mix(in srgb, var(--mw-accent) 14%, transparent); color: var(--mw-accent); }
 .mw-toolbar button:disabled { opacity: .25; cursor: default; }
+.mw-panel-toggle { display: none; }
 .mw-toolbar .mw-primary {
   margin-left: auto;
   background: var(--mw-accent);
@@ -279,6 +280,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 @media (max-width: 980px) {
   :root { --mw-side: 168px; --mw-right: 210px; }
+  .mw-panel-toggle { display: inline-flex; }
+  .mw-app[data-side="hidden"] { grid-template-columns: 0 minmax(0, 1fr) var(--mw-right); }
+  .mw-app[data-side="hidden"] .mw-side { display: none; }
+  .mw-app[data-inspector="hidden"] { grid-template-columns: var(--mw-side) minmax(0, 1fr) 0; }
+  .mw-app[data-inspector="hidden"] .mw-inspector { display: none; }
 }
 
 @media (max-width: 760px) {

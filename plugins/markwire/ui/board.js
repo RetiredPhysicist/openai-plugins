@@ -49,6 +49,88 @@ export class Board {
     this.rows = Math.max(1, Math.floor(rows));
     this.cols = Math.max(1, Math.floor(cols));
     this.shapes = [];
+    this.#cache = null;
+  }
+
+  #cache;
+
+  /** Drops the derived grid cache; every mutation calls this. */
+  #invalidate() {
+    this.#cache = null;
+  }
+
+  /**
+   * One derived grid shared by toText/cellAt/armsAt. Entry layout:
+   * [overlayChar, hasH, hasV, up, down, left, right]. overlayChar is the
+   * topmost stroke/text/cells character at this cell, or null for pure lines.
+   * Building is O(rows*cols + total shape cells), turning every read O(1).
+   */
+  #grid() {
+    if (this.#cache) return this.#cache;
+    const { rows, cols } = this;
+    const grid = new Array(rows * cols).fill(null);
+    for (const shape of this.shapes) {
+      if (shape.kind === "box") {
+        const bottom = shape.row + shape.height - 1;
+        const right = shape.col + shape.width - 1;
+        for (let col = shape.col; col <= right; col++) {
+          this.#markLine(grid, shape.row, col, true, col > shape.col, col < right);
+          this.#markLine(grid, bottom, col, true, col > shape.col, col < right);
+        }
+        for (let row = shape.row; row <= bottom; row++) {
+          this.#markLine(grid, row, shape.col, false, row > shape.row, row < bottom);
+          this.#markLine(grid, row, right, false, row > shape.row, row < bottom);
+        }
+      } else if (shape.kind === "h") {
+        for (let col = shape.col; col < shape.col + shape.length; col++) {
+          this.#markLine(grid, shape.row, col, true, col > shape.col, col < shape.col + shape.length - 1);
+        }
+      } else if (shape.kind === "v") {
+        for (let row = shape.row; row < shape.row + shape.length; row++) {
+          this.#markLine(grid, row, shape.col, false, row > shape.row, row < shape.row + shape.length - 1);
+        }
+      } else if (shape.kind === "stroke") {
+        const entry = this.#entry(grid, shape.row, shape.col);
+        entry[0] = shape.char;
+      } else if (shape.kind === "cells") {
+        for (const cell of shape.cells) {
+          const entry = this.#entry(grid, cell.row, cell.col);
+          entry[0] = cell.char;
+        }
+      } else if (shape.kind === "text") {
+        const lines = shape.text.split("\n");
+        for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+          const line = lines[lineIndex];
+          for (let charIndex = 0; charIndex < line.length; charIndex++) {
+            const entry = this.#entry(grid, shape.row + lineIndex, shape.col + charIndex);
+            if (entry) entry[0] = line[charIndex];
+          }
+        }
+      }
+    }
+    this.#cache = grid;
+    return grid;
+  }
+
+  #entry(grid, row, col) {
+    if (row < 0 || row >= this.rows || col < 0 || col >= this.cols) return null;
+    const index = row * this.cols + col;
+    if (!grid[index]) grid[index] = [null, false, false, false, false, false, false];
+    return grid[index];
+  }
+
+  #markLine(grid, row, col, hasH, left, right) {
+    const entry = this.#entry(grid, row, col);
+    if (!entry) return;
+    if (hasH) {
+      entry[1] = true;
+      if (left) entry[5] = true;
+      if (right) entry[6] = true;
+    } else {
+      entry[2] = true;
+      if (left) entry[3] = true;
+      if (right) entry[4] = true;
+    }
   }
 
   inBounds(row, col) {
@@ -68,6 +150,7 @@ export class Board {
   add(shape) {
     const next = { id: shape.id ?? Board.createShapeId(), ...shape };
     this.shapes.push(next);
+    this.#invalidate();
     return next;
   }
 
@@ -83,7 +166,9 @@ export class Board {
   remove(id) {
     const before = this.shapes.length;
     this.shapes = this.shapes.filter((shape) => shape.id !== id);
-    return this.shapes.length !== before;
+    const changed = this.shapes.length !== before;
+    if (changed) this.#invalidate();
+    return changed;
   }
 
   /** Moves a shape by row and column deltas. */
@@ -104,10 +189,12 @@ export class Board {
         row: cell.row + rowDelta,
         col: cell.col + colDelta,
       }));
+      this.#invalidate();
       return true;
     }
     shape.row = Math.max(0, Math.min(this.rows - 1, shape.row + dRow));
     shape.col = Math.max(0, Math.min(this.cols - 1, shape.col + dCol));
+    this.#invalidate();
     return true;
   }
 
@@ -118,14 +205,17 @@ export class Board {
     if (shape.kind === "box") {
       shape.width = Math.max(2, Math.min(this.cols - shape.col, width));
       shape.height = Math.max(2, Math.min(this.rows - shape.row, height));
+      this.#invalidate();
       return true;
     }
     if (shape.kind === "h") {
       shape.length = Math.max(1, Math.min(this.cols - shape.col, width));
+      this.#invalidate();
       return true;
     }
     if (shape.kind === "v") {
       shape.length = Math.max(1, Math.min(this.rows - shape.row, height));
+      this.#invalidate();
       return true;
     }
     return false;
@@ -343,72 +433,60 @@ export class Board {
     }
 
     this.shapes = kept;
+    this.#invalidate();
   }
 
   clear() {
+    if (this.shapes.length === 0) return;
     this.shapes = [];
+    this.#invalidate();
   }
 
   undo() {
-    return this.shapes.pop() !== undefined;
+    const changed = this.shapes.pop() !== undefined;
+    if (changed) this.#invalidate();
+    return changed;
   }
 
   /** Strokes covering this cell, with the arms each run reaches within its own cells. */
   cellAt(row, col) {
-    const cell = { up: false, down: false, left: false, right: false, hasH: false, hasV: false };
-    for (const shape of this.shapes) {
-      if (shape.kind === "box") {
-        const bottom = shape.row + shape.height - 1;
-        const right = shape.col + shape.width - 1;
-        if (row === shape.row || row === bottom) {
-          if (col >= shape.col && col <= right) {
-            cell.hasH = true;
-            if (col > shape.col) cell.left = true;
-            if (col < right) cell.right = true;
-          }
-        }
-        if (col === shape.col || col === right) {
-          if (row >= shape.row && row <= bottom) {
-            cell.hasV = true;
-            if (row > shape.row) cell.up = true;
-            if (row < bottom) cell.down = true;
-          }
-        }
-      } else if (shape.kind === "h" && shape.row === row) {
-        if (col >= shape.col && col < shape.col + shape.length) {
-          cell.hasH = true;
-          // A run reaches past an edge only when another cell of the same run sits there.
-          if (col > shape.col) cell.left = true;
-          if (col < shape.col + shape.length - 1) cell.right = true;
-        }
-      } else if (shape.kind === "v" && shape.col === col) {
-        if (row >= shape.row && row < shape.row + shape.length) {
-          cell.hasV = true;
-          if (row > shape.row) cell.up = true;
-          if (row < shape.row + shape.length - 1) cell.down = true;
-        }
-      }
-    }
-    return cell;
+    const entry = this.#grid()[row * this.cols + col] ?? null;
+    return {
+      up: entry?.[3] ?? false,
+      down: entry?.[4] ?? false,
+      left: entry?.[5] ?? false,
+      right: entry?.[6] ?? false,
+      hasH: entry?.[1] ?? false,
+      hasV: entry?.[2] ?? false,
+    };
   }
 
   /** Arms for the final glyph, including joins where a perpendicular stroke crosses. */
   armsAt(row, col) {
-    const cell = this.cellAt(row, col);
-    const arms = { up: cell.up, down: cell.down, left: cell.left, right: cell.right };
+    const grid = this.#grid();
+    const read = (r, c) => grid[r * this.cols + c] ?? null;
+    const cell = read(row, col);
+    const arms = {
+      up: cell?.[3] ?? false,
+      down: cell?.[4] ?? false,
+      left: cell?.[5] ?? false,
+      right: cell?.[6] ?? false,
+    };
+    const hasH = cell?.[1] ?? false;
+    const hasV = cell?.[2] ?? false;
 
-    const above = this.inBounds(row - 1, col) ? this.cellAt(row - 1, col) : undefined;
-    const below = this.inBounds(row + 1, col) ? this.cellAt(row + 1, col) : undefined;
-    const prior = this.inBounds(row, col - 1) ? this.cellAt(row, col - 1) : undefined;
-    const next = this.inBounds(row, col + 1) ? this.cellAt(row, col + 1) : undefined;
+    const above = row > 0 ? read(row - 1, col) : null;
+    const below = row < this.rows - 1 ? read(row + 1, col) : null;
+    const prior = col > 0 ? read(row, col - 1) : null;
+    const next = col < this.cols - 1 ? read(row, col + 1) : null;
 
-    if (cell.hasH) {
-      if (above?.hasV) arms.up = true;
-      if (below?.hasV) arms.down = true;
+    if (hasH) {
+      if (above?.[2]) arms.up = true;
+      if (below?.[2]) arms.down = true;
     }
-    if (cell.hasV) {
-      if (prior?.hasH) arms.left = true;
-      if (next?.hasH) arms.right = true;
+    if (hasV) {
+      if (prior?.[1]) arms.left = true;
+      if (next?.[1]) arms.right = true;
     }
     return arms;
   }
@@ -416,30 +494,9 @@ export class Board {
   /** Resolves one cell to its final character. */
   at(row, col) {
     if (!this.inBounds(row, col)) return " ";
-
-    for (let i = this.shapes.length - 1; i >= 0; i--) {
-      const shape = this.shapes[i];
-      if (shape.kind === "stroke") {
-        if (shape.row === row && shape.col === col) return shape.char;
-        continue;
-      }
-      if (shape.kind === "cells") {
-        const cell = shape.cells.find((item) => item.row === row && item.col === col);
-        if (cell) return cell.char;
-        continue;
-      }
-      if (shape.kind !== "text") continue;
-      const lines = shape.text.split("\n");
-      const lineIndex = row - shape.row;
-      if (lineIndex < 0 || lineIndex >= lines.length) continue;
-      const line = lines[lineIndex];
-      const charIndex = col - shape.col;
-      if (charIndex < 0 || charIndex >= line.length) continue;
-      return line[charIndex];
-    }
-
-    const cell = this.cellAt(row, col);
-    const axis = cell.hasH ? "h" : cell.hasV ? "v" : undefined;
+    const entry = this.#grid()[row * this.cols + col];
+    if (entry && entry[0] !== null) return entry[0];
+    const axis = entry?.[1] ? "h" : entry?.[2] ? "v" : undefined;
     return glyphFor(this.armsAt(row, col), axis);
   }
 
