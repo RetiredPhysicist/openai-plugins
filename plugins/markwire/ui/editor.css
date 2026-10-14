@@ -6,6 +6,7 @@
   --mw-muted: #74777d;
   --mw-accent: #2563eb;
   --mw-danger: #dc2626;
+  --mw-success: #16a34a;
   --mw-cell: 9px;
   --mw-line: 19px;
   --mw-side: 192px;
@@ -19,6 +20,7 @@
   --mw-fg: #ececef;
   --mw-muted: #9ca0a8;
   --mw-accent: #60a5fa;
+  --mw-success: #22c55e;
 }
 
 * { box-sizing: border-box; }
@@ -143,21 +145,52 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-weight: 600;
 }
 .mw-toolbar .mw-primary:hover { background: color-mix(in srgb, var(--mw-accent) 88%, #000); color: #fff; }
-.mw-text-input {
+.mw-toolbar button.is-confirmed,
+.mw-toolbar button.is-confirmed:hover {
+  background: var(--mw-success);
+  color: #fff;
+}
+.mw-text-pop {
   position: fixed;
   left: 50%;
   bottom: 18px;
   z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: min(320px, 70vw);
-  padding: 8px 10px;
   transform: translateX(-50%);
+  padding: 6px;
   border: 1px solid var(--mw-accent);
   border-radius: 8px;
   background: var(--mw-bg);
-  color: var(--mw-fg);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
 }
-.mw-text-input[hidden] { display: none; }
+.mw-text-pop[hidden] { display: none; }
+.mw-text-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--mw-fg);
+  font: inherit;
+}
+.mw-text-input:focus { outline: none; }
+.mw-text-close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--mw-muted);
+  cursor: pointer;
+}
+.mw-text-close:hover { background: color-mix(in srgb, var(--mw-danger) 14%, transparent); color: var(--mw-danger); }
+.mw-text-close svg { width: 14px; height: 14px; display: block; }
 .mw-output {
   position: fixed;
   left: 50%;
@@ -339,5 +372,5 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .mw-toolbar::-webkit-scrollbar { display: none; }
   .mw-toolbar button { flex: 0 0 auto; }
   .mw-toolbar .mw-primary { margin-left: 0; }
-  .mw-text-input { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
+  .mw-text-pop { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
 }

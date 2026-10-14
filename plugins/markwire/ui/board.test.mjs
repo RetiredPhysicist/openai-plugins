@@ -162,6 +162,60 @@ test("erase removes a whole label inside the region", () => {
   assert.equal(board.toText(), "");
 });
 
+test("erase blanks single label characters without moving the rest", () => {
+  const board = new Board(3, 20);
+  board.text(1, 2, "hello world");
+  board.erase(1, 8, 1, 1);
+  assert.equal(board.toText().split("\n")[1], "  hello  orld");
+});
+
+test("erase trims one border of a rectangle instead of ignoring it", () => {
+  const board = new Board(6, 20);
+  board.box(1, 1, 4, 10);
+  const before = board.toText();
+  board.erase(1, 5, 1, 2);
+  assert.equal(before.split("\n")[1], " ┌────────┐");
+  assert.equal(board.toText().split("\n")[1], " ┌───  ───┐");
+});
+
+test("erase still removes a rectangle it fully covers", () => {
+  const board = new Board(6, 20);
+  board.box(1, 1, 4, 10);
+  board.erase(0, 0, 6, 20);
+  assert.equal(board.toText(), "");
+});
+
+test("a trimmed component keeps its role on every surviving run", () => {
+  const board = new Board(8, 30);
+  board.box(1, 1, 4, 20);
+  board.labelSince(0, "Card");
+  board.erase(1, 10, 1, 2);
+  assert.ok(board.shapes.length > 1);
+  for (const shape of board.shapes) assert.equal(shape.role, "Card");
+});
+
+test("a trimmed rectangle leaves selectable runs with unique identities", () => {
+  const board = new Board(6, 20);
+  board.box(1, 1, 4, 10);
+  const [box] = board.shapes;
+  board.erase(1, 5, 1, 2);
+  const ids = board.shapes.map((shape) => shape.id);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.equal(board.select(box.id), undefined);
+});
+
+test("invalidate repaints after a caller mutates a shape in place", () => {
+  const board = new Board(5, 20);
+  board.box(1, 1, 3, 8);
+  const [box] = board.shapes;
+  assert.equal(board.toText().split("\n")[1], " ┌──────┐");
+  // The editor's inspector writes shape fields directly, with no board call.
+  box.width = 14;
+  assert.equal(board.toText().split("\n")[1], " ┌──────┐");
+  board.invalidate();
+  assert.equal(board.toText().split("\n")[1], " ┌────────────┐");
+});
+
 test("erase leaves shapes that do not overlap", () => {
   const board = new Board(4, 6);
   board.hline(0, 0, 4);
