@@ -62,7 +62,12 @@ window.addEventListener("message", (event) => {
     name === "get_sidebar" ? sidebar :
     name === "get_tasks" ? tasks :
     name === "get_task" ? detail :
-    name === "complete_todo" ? { task: tasks.items[0] } : null;
+    name === "complete_todo" ? { task: tasks.items[0] } :
+    name === "settings.read" ? { schema: { type: "object", properties: {} }, values: {} } : null;
+  if (message.method === "ui/update-model-context") {
+    event.source.postMessage({ jsonrpc: "2.0", id: message.id, result: { _meta: { "openai/modelContext": { updateId: "u1" } } } }, "*");
+    return;
+  }
   if (payload) {
     event.source.postMessage({ jsonrpc: "2.0", id: message.id, result: { structuredContent: payload } }, "*");
     return;

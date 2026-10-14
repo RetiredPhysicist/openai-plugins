@@ -1,10 +1,11 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { McpServer } from "@modelcontextprotocol/server";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import {
   registerAppResource,
   registerAppTool,
   RESOURCE_MIME_TYPE,
 } from "@modelcontextprotocol/ext-apps/server";
+import { OpenAIExtensions } from "@openai/mcp-extensions/server";
 import { z } from "zod";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -125,6 +126,8 @@ function editorHtml() {
   return html;
 }
 
+const defaultCanvas = { defaultRows: 40, defaultCols: 80 };
+
 export function createServer() {
   const server = new McpServer(
     {
@@ -163,6 +166,32 @@ export function createServer() {
     }),
   );
 
+  const openai = new OpenAIExtensions(server);
+  openai.settings.register({
+    fields: {
+      defaultRows: {
+        schema: z.number().int().min(2).max(MAX_ROWS),
+        title: "Default rows",
+      },
+      defaultCols: {
+        schema: z.number().int().min(2).max(MAX_COLS),
+        title: "Default columns",
+      },
+    },
+    layout: [
+      {
+        kind: "group",
+        title: "Canvas",
+        items: [
+          { kind: "property", property: "defaultRows" },
+          { kind: "property", property: "defaultCols" },
+        ],
+      },
+    ],
+    read: async () => ({ ...defaultCanvas }),
+    update: async (set) => Object.assign(defaultCanvas, set),
+  });
+
   registerAppTool(
     server,
     "open_wireframe",
@@ -181,7 +210,17 @@ export function createServer() {
       _meta: {
         ui: { resourceUri: UI_URI },
         "openai/ui": {
-          entrypoints: [{ type: "thread" }, { type: "global" }],
+          entrypoints: [
+            {
+              type: "global",
+              quickAction: {
+                title: "New wireframe",
+                icons: [{ src: SIDEBAR_ICON, mimeType: "image/svg+xml", sizes: ["20x20"] }],
+                target: { type: "tool", name: "open_wireframe", arguments: {} },
+              },
+            },
+            { type: "thread" },
+          ],
         },
         "openai/toolInvocation/invoking": "Opening wireframe…",
         "openai/toolInvocation/invoked": "Wireframe ready",
@@ -194,8 +233,7 @@ export function createServer() {
 }
 
 async function main() {
-  const server = createServer();
-  await server.connect(new StdioServerTransport());
+  await serveStdio(() => createServer());
 }
 
 main().catch((error) => {

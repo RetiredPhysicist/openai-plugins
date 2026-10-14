@@ -1,5 +1,6 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { McpServer } from "@modelcontextprotocol/server";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
+import { OpenAIExtensions } from "@openai/mcp-extensions/server";
 import {
   registerAppResource,
   registerAppTool,
@@ -89,6 +90,29 @@ function formatTaskLine(task) {
   if (task.tags?.length) parts.push(task.tags.map((tag) => `#${tag}`).join(" "));
   return parts.join(" ");
 }
+
+function mentionSubtitle(item) {
+  const parts = [item.project ?? item.area, item.deadline ?? item.startDate];
+  return parts.filter(Boolean).join(" · ") || undefined;
+}
+
+function mentionItem(item) {
+  return {
+    type: "resource",
+    resourceUri: `things://item/${item.id}`,
+    title: item.title,
+    subtitle: mentionSubtitle(item),
+  };
+}
+
+const MENTION_LIMIT = 8;
+
+const VIEW_IDS = ["inbox", "today", "upcoming", "anytime", "someday", "logbook", "trash"];
+const settingsStore = {
+  defaultView: "today",
+  searchIncludeCompleted: false,
+  pageSize: 100,
+};
 
 const viewEnum = z.enum(["inbox", "today", "upcoming", "anytime", "someday", "logbook", "trash"]);
 
@@ -197,7 +221,7 @@ export function createServer() {
       },
     },
     async ({ view }) => ({
-      structuredContent: { view: view ?? "today" },
+      structuredContent: { view: view ?? settingsStore.defaultView },
       content: [{ type: "text", text: "Opening the Things workspace." }],
     }),
   );
@@ -351,8 +375,9 @@ export function createServer() {
     },
     async ({ query, includeCompleted, limit }) => {
       try {
-        const items = db().withTags(db().search(query, { includeCompleted }));
-        const page = limit ? items.slice(0, limit) : items;
+        const effectiveIncludeCompleted = includeCompleted ?? settingsStore.searchIncludeCompleted;
+        const items = db().withTags(db().search(query, { includeCompleted: effectiveIncludeCompleted }));
+        const page = items.slice(0, limit ?? settingsStore.pageSize);
         return listResult(page, { total: items.length, query });
       } catch (error) {
         return failure(error);
@@ -650,6 +675,50 @@ export function createServer() {
     },
   );
 
+  const openai = new OpenAIExtensions(server);
+  openai.settings.register({
+    fields: {
+      defaultView: {
+        schema: z.enum(VIEW_IDS),
+        title: "Default view",
+        description: "View the workspace opens with.",
+      },
+      searchIncludeCompleted: {
+        schema: z.boolean(),
+        title: "Search includes completed",
+        description: "Whether search matches completed items.",
+      },
+      pageSize: {
+        schema: z.number().int().min(10).max(500),
+        title: "Tasks per page",
+      },
+    },
+    layout: [
+      {
+        kind: "group",
+        title: "General",
+        items: [
+          { kind: "property", property: "defaultView" },
+          { kind: "property", property: "searchIncludeCompleted" },
+          { kind: "property", property: "pageSize" },
+        ],
+      },
+    ],
+    read: async () => ({ ...settingsStore }),
+    update: async (set) => Object.assign(settingsStore, set),
+  });
+  openai.mentions.setHandler(async ({ query }) => {
+    const items = db().search(query, {
+      includeCompleted: settingsStore.searchIncludeCompleted,
+    });
+    return {
+      items: items
+        .slice(0, MENTION_LIMIT)
+        .filter((item) => item.status === "open")
+        .map(mentionItem),
+    };
+  });
+
   return server;
 }
 
@@ -680,8 +749,7 @@ async function waitForProjectMove(ids, listId, { attempts = 15, delayMs = 150 } 
 }
 
 async function main() {
-  const server = createServer();
-  await server.connect(new StdioServerTransport());
+  await serveStdio(() => createServer());
 }
 
 main().catch((error) => {
