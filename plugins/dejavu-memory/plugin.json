@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "dejavu-memory",
-  "version": "0.1.0",
-  "description": "Long-term memory for ChatGPT and Codex backed by your own DejaVu server.",
+  "version": "0.2.0",
+  "description": "Long-term memory for ChatGPT and Codex backed by your own DejaVu server, with a visual memory graph.",
   "author": {
     "name": "RetiredPhysicist",
     "url": "https://github.com/RetiredPhysicist"
@@ -23,8 +23,8 @@
     "com.openai": {
       "interface": {
         "displayName": "DejaVu Memory",
-        "shortDescription": "Durable long-term memory backed by your own DejaVu server",
-        "longDescription": "DejaVu Memory gives ChatGPT and Codex a hierarchical, versioned memory tree. Store decisions, preferences, and reusable judgments once, then recall them with keyword or semantic search in later conversations. Memory lives on your own DejaVu server, so you keep the data.",
+        "shortDescription": "Memory tree with a visual graph",
+        "longDescription": "DejaVu Memory gives ChatGPT and Codex a hierarchical, versioned memory tree. Store decisions, preferences, and reusable judgments once, then recall them with keyword or semantic search. The workspace includes an interactive force-directed graph of the memory tree with hybrid search and a content inspector. Data stays on your own DejaVu server; this bridge only proxies MCP calls with your Cloudflare Access service token.",
         "developerName": "RetiredPhysicist",
         "category": "Productivity",
         "capabilities": [
@@ -38,8 +38,12 @@
           "Remember this decision and why it matters",
           "What do I already know about this project?"
         ],
-        "brandColor": "#6C5CE7"
+        "brandColor": "#6C5CE7",
+        "composerIcon": "./assets/icon.svg",
+        "logo": "./assets/icon.svg"
       }
     }
-  }
+  },
+  "mcpServers": "./mcp.json",
+  "skills": "./skills/"
 }

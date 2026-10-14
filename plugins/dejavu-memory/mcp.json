@@ -2,11 +2,14 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
   "mcpServers": {
     "dejavu": {
-      "type": "streamable-http",
-      "url": "https://your-dejavu.example.com/mcp",
-      "headers": {
-        "CF-Access-Client-Id": "your-access-client-id",
-        "CF-Access-Client-Secret": "your-access-client-secret"
+      "type": "stdio",
+      "command": "node",
+      "args": ["${PLUGIN_ROOT}/server/bridge.mjs"],
+      "cwd": "${PLUGIN_ROOT}",
+      "env": {
+        "DEJAVU_URL": "https://dejavu.example.com/mcp",
+        "DEJAVU_CLIENT_ID": "${DEJAVU_CLIENT_ID}",
+        "DEJAVU_CLIENT_SECRET": "${DEJAVU_CLIENT_SECRET}"
       }
     }
   }

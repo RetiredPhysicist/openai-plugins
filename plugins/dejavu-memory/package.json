@@ -1,0 +1,16 @@
+{
+  "devDependencies": {
+    "@modelcontextprotocol/ext-apps": "^2.0.3",
+    "@modelcontextprotocol/sdk": "^1.32.0",
+    "@modelcontextprotocol/server": "^2.3.1",
+    "@openai/mcp-extensions": "^0.2.0",
+    "esbuild": "^0.28.2",
+    "zod": "^4.6.5"
+  },
+  "name": "@retiredphysicist/dejavu-memory",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node server/build.mjs"
+  }
+}
