@@ -61,35 +61,9 @@ http_headers = { Authorization = "Bearer as_sk_..." }
 
 ## dejavu-memory
 
-DejaVu runs on your own server. The plugin ships a local bridge that serves the memory graph UI and
-proxies tool calls to your deployment. Configure it with three environment variables (for example in
-`~/.codex/config.toml` under `[plugins.dejavu-memory@retiredphysicist].env`, or export them before
-starting Codex):
-
-```toml
-[plugins."dejavu-memory@retiredphysicist".env]
-DEJAVU_URL = "https://your-dejavu.example.com/mcp"
-DEJAVU_CLIENT_ID = "your-access-client-id"
-DEJAVU_CLIENT_SECRET = "your-access-client-secret"
-```
-
-`DEJAVU_CLIENT_ID`/`DEJAVU_CLIENT_SECRET` are a Cloudflare Access service token; skip them for a
-deployment without Access (the bridge sends plain posts).
-
-Open **DejaVu Memory** from the sidebar for an interactive graph of the memory tree: search highlights
-matching nodes, click a node to read it, double-click to expand its children, drag to rearrange,
-scroll to zoom. The model-facing tools (`read_memory`, `search_memory`, and the rest) are unchanged.
-
-![DejaVu Memory graph showing the whole memory tree](./plugins/dejavu-memory/assets/dejavu-memory-graph.webp)
-
-<p align="center">
-  <img src="./plugins/dejavu-memory/assets/dejavu-memory-hover.webp" width="49%" alt="Hovering a node highlights it, its links and a tooltip with its type">
-  <img src="./plugins/dejavu-memory/assets/dejavu-memory-search.webp" width="49%" alt="A search highlights matching nodes, with the node inspector open on the right">
-</p>
-
-Set your server up first: [DejaVu](https://github.com/RealAlexandreAI/DejaVu).
-
-**Why this is a manual step.** Three constraints rule out shipping a working default:
+DejaVu runs on your own server. The plugin ships no MCP server of its own — the memory graph is a
+server-side MCP App served by your DejaVu worker. Point Codex at your deployment by adding it as
+`dejavu`:
 
 ```toml
 [mcp_servers.dejavu]
@@ -97,8 +71,24 @@ url = "https://your-dejavu.example.com/mcp"
 http_headers = { CF-Access-Client-Id = "your-client-id", CF-Access-Client-Secret = "your-client-secret" }
 ```
 
-Keep the `dejavu` name: it replaces the placeholder server the plugin ships with. The header pair is
-only for deployments behind Cloudflare Access; a server without Access needs just `url`.
+Keep the `dejavu` name. The header pair is only for deployments behind Cloudflare Access; a server
+without Access needs just `url`.
+
+Open **DejaVu Memory** from the sidebar for an interactive graph of the memory tree: search highlights
+matching nodes, click a node to read it, double-click to expand its children, drag to rearrange,
+scroll to zoom. The model-facing tools (`read_memory`, `search_memory`, and the rest) are unchanged.
+
+<p align="center">
+  <img src="./plugins/dejavu-memory/assets/dejavu-memory-graph.webp" width="100%" alt="DejaVu Memory in Codex: the whole memory tree as an interactive graph, with type colours and priority-sized nodes">
+</p>
+
+<p align="center">
+  <img src="./plugins/dejavu-memory/assets/dejavu-memory-inspector.webp" width="100%" alt="Selecting a node opens the inspector: the memory URI, its type and priority, and the body text, with its subtree highlighted">
+</p>
+
+Set your server up first: [DejaVu](https://github.com/RealAlexandreAI/DejaVu).
+
+**Why this is a manual step.** Three constraints rule out shipping a working default:
 
 1. Each deployment has its own hostname, and the plugin format has no variable expansion for MCP
    URLs, so a shipped URL cannot be right for everyone.
