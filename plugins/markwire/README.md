@@ -25,7 +25,7 @@ self-contained editor bundle, so it is available in Codex, not ChatGPT.
 
 | tool | what it does |
 | --- | --- |
-| `open_wireframe` | open the editor; pass `shapes` when the layout is known, and a `token` to edit the previous drawing |
+| `open_wireframe` | open the editor; pass `shapes` when the layout is known, and a `session` token to edit the previous drawing |
 
 The editor supports select, text, box, line, arrow, pencil, eraser, button, input, card, table, modal,
 dropdown, toggle, tabs, layers, properties, undo, redo, clear, grid toggle, dark mode, canvas sizes,
@@ -42,7 +42,8 @@ Coordinates start at row `0`, column `0`; rows grow downward and columns grow ri
 | shape | fields |
 | --- | --- |
 | box | `row`, `col`, `height`, `width` |
-| h / v | `row`, `col`, `length` |
+| h | `row`, `col`, `length` |
+| v | `row`, `col`, `length` |
 | text | `row`, `col`, `text` |
 | stroke | `row`, `col`, `char` |
 | cells | `cells: [{ row, col, char }]` |

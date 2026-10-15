@@ -39,11 +39,13 @@ Reads and to-do writes never need that permission.
 | `open_workspace` | open the interactive workspace (sidebar without a model call) |
 | `get_tasks` | read one view: inbox, today, upcoming, anytime, someday, logbook, trash |
 | `get_task` / `get_project` | read one item with notes, tags, checklist, headings |
+| `get_sidebar` / `get_tagged` | sidebar counts, projects, areas, tags; open tasks for one tag |
 | `search_things` | search to-dos and projects by title and notes |
 | `add_todo` / `update_todo` / `complete_todo` | create, edit, complete, or reopen a to-do |
 | `add_project` / `update_project` | create or edit a project |
 | `move_todos` | move many to-dos into a project or area in one batch |
 | `create_area` / `update_area` | create an area or rename it (AppleScript) |
+| `show_in_things` | bring Things to the front showing one item |
 
 ## Limits
 
