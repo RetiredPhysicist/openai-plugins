@@ -74,8 +74,13 @@ jobs:
           OUTPUTS: plugins/${{ matrix.plugin }}/${{ matrix.bundle }} plugins/${{ matrix.plugin }}/${{ matrix.page }}
         run: |
           npm --prefix "plugins/${{ matrix.plugin }}" run build
-          if ! git diff --quiet -- $OUTPUTS; then
-            echo "::error::build output is out of date; run 'npm run build' and commit the result" >&2
-            git --no-pager diff --stat -- $OUTPUTS
-            exit 1
+          read -ra outputs <<< "$OUTPUTS"
+          # `git diff` only inspects tracked files, so a build that emits a new
+          # or renamed chunk would pass. Compare what git sees after the build.
+          if ! git status --porcelain -- "${outputs[@]}" | grep -q .; then
+            exit 0
           fi
+          echo "::error::build output is out of date; run 'npm run build' and commit the result" >&2
+          git status --porcelain -- "${outputs[@]}"
+          git --no-pager diff --stat -- "${outputs[@]}"
+          exit 1
