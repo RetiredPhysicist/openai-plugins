@@ -1,11 +1,27 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { accessSync, constants, readFileSync } from "node:fs";
+import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+
+// This case drives a real browser through ego-browser. A runner without it
+// would otherwise spawn a process that fails, and the pending stdio pipes keep
+// the event loop alive until the job times out. Checked on PATH rather than by
+// running the command: spawnSync on a missing binary still leaves the error
+// event unhandled here.
+const hasBrowser = process.env.PATH.split(delimiter).some((dir) => {
+  try {
+    accessSync(join(dir, "ego-browser"), constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+});
+const needsBrowser = { skip: hasBrowser ? false : "ego-browser is not installed on this host" };
 
 function serve(handler) {
   const server = createServer(handler);
@@ -88,7 +104,7 @@ document.getElementById("host").appendChild(frame);
 </body></html>`;
 }
 
-test("workspace renders tasks and fills the inspector", async () => {
+test("workspace renders tasks and fills the inspector", needsBrowser, async () => {
   const workspaceHtml = readFileSync(`${root}/ui/workspace.html`, "utf8");
   const server = await serve((request, response) => {
     const path = new URL(request.url, "http://127.0.0.1").pathname;
