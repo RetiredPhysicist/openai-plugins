@@ -3,8 +3,22 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
+import { resolveDatabasePath } from "./things-db.js";
 
 const serverPath = fileURLToPath(new URL("./things.mjs", import.meta.url));
+
+// Three cases below assert against the live Things database, which only
+// exists on a Mac that has run Things and granted the runner access to its
+// container. Everything else in this file is host-independent.
+const liveDatabase = (() => {
+  try {
+    resolveDatabasePath();
+    return true;
+  } catch {
+    return false;
+  }
+})();
+const needsDatabase = { skip: liveDatabase ? false : "no readable Things database on this host" };
 
 class StdioClient {
   constructor(child) {
@@ -111,7 +125,7 @@ test("resources/read returns the self-contained workspace", async () => {
   });
 });
 
-test("get_tasks returns typed structured content", async () => {
+test("get_tasks returns typed structured content", needsDatabase, async () => {
   await withClient(async (client) => {
     const result = await client.request("tools/call", {
       name: "get_tasks",
@@ -126,7 +140,7 @@ test("get_tasks returns typed structured content", async () => {
   });
 });
 
-test("get_sidebar returns counts, projects, areas, and tags", async () => {
+test("get_sidebar returns counts, projects, areas, and tags", needsDatabase, async () => {
   await withClient(async (client) => {
     const result = await client.request("tools/call", {
       name: "get_sidebar",
@@ -152,7 +166,7 @@ test("an unknown view is rejected as a structured error", async () => {
   });
 });
 
-test("search returns only matching tasks", async () => {
+test("search returns only matching tasks", needsDatabase, async () => {
   await withClient(async (client) => {
     const result = await client.request("tools/call", {
       name: "search_things",

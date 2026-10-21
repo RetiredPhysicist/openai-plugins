@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
+    steps:
+      - uses: useblacksmith/checkout@v1
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+
+      # Closed manifest schema, name constraints, and the fixed skills/ and
+      # mcp.json locations. A client rejects a plugin that violates any of
+      # these, so a broken manifest would ship as "this plugin does nothing".
+      - name: Validate manifests
+        run: node scripts/validate-plugins.mjs
+
+  plugin:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - plugin: markwire
+            bundle: server/server.mjs
+            page: ui/editor.html
+          - plugin: things
+            bundle: server/things.mjs
+            page: ui/workspace.html
+    steps:
+      - uses: useblacksmith/checkout@v1
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+          cache: npm
+          cache-dependency-path: plugins/${{ matrix.plugin }}/package-lock.json
+
+      - name: Install
+        working-directory: plugins/${{ matrix.plugin }}
+        run: npm ci
+
+      - name: Test
+        working-directory: plugins/${{ matrix.plugin }}
+        run: npm test
+
+      # The client runs the committed bundle, never the sources. Rebuild and
+      # fail when the two disagree, or a fix could land in src.mjs and ship
+      # as the previous code.
+      - name: Verify the committed bundle matches the source
+        env:
+          # The two files build.mjs writes: the MCP server bundle and the
+          # inlined workspace page the client actually serves.
+          OUTPUTS: plugins/${{ matrix.plugin }}/${{ matrix.bundle }} plugins/${{ matrix.plugin }}/${{ matrix.page }}
+        run: |
+          npm --prefix "plugins/${{ matrix.plugin }}" run build
+          if ! git diff --quiet -- $OUTPUTS; then
+            echo "::error::build output is out of date; run 'npm run build' and commit the result" >&2
+            git --no-pager diff --stat -- $OUTPUTS
+            exit 1
+          fi
