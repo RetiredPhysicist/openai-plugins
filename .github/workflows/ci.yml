@@ -3,11 +3,19 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore: &docs
+      - 'README.md'
+      - 'README.zh.md'
   pull_request:
+    paths-ignore: *docs
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
