@@ -7,7 +7,7 @@
     "name": "RetiredPhysicist",
     "url": "https://github.com/RetiredPhysicist"
   },
-  "homepage": "https://github.com/RealAlexandreAI/DejaVu",
+  "homepage": "https://github.com/RetiredPhysicist/openai-plugins/tree/main/plugins/dejavu-memory",
   "repository": "https://github.com/RetiredPhysicist/openai-plugins",
   "license": "MIT",
   "keywords": [
@@ -24,7 +24,7 @@
       "interface": {
         "displayName": "DejaVu Memory",
         "shortDescription": "Memory tree with a visual graph",
-        "longDescription": "DejaVu Memory gives ChatGPT and Codex a hierarchical, versioned memory tree. Store decisions, preferences, and reusable judgments once, then recall them with keyword or semantic search. The workspace includes an interactive graph of the memory tree with hybrid search, a content inspector, and subtree expansion. Data stays on your own DejaVu server, reached through its MCP endpoint.",
+        "longDescription": "DejaVu Memory gives ChatGPT and Codex a hierarchical, versioned memory tree. Store decisions, preferences, and reusable judgments once, then recall them with keyword or semantic search. The plugin workspace includes an interactive graph of the memory tree with hybrid search, a content inspector, and subtree expansion. Data stays on your own DejaVu server, reached through the MCP endpoint used by the plugin.",
         "developerName": "RetiredPhysicist",
         "category": "Productivity",
         "capabilities": [
@@ -32,9 +32,9 @@
           "Read",
           "Write"
         ],
-        "websiteURL": "https://github.com/RealAlexandreAI/DejaVu",
-        "privacyPolicyURL": "https://github.com/RealAlexandreAI/DejaVu",
-        "termsOfServiceURL": "https://github.com/RealAlexandreAI/DejaVu",
+        "websiteURL": "https://github.com/RetiredPhysicist/openai-plugins/tree/main/plugins/dejavu-memory",
+        "privacyPolicyURL": "https://github.com/RetiredPhysicist/openai-plugins/tree/main/plugins/dejavu-memory",
+        "termsOfServiceURL": "https://github.com/RetiredPhysicist/openai-plugins/tree/main/plugins/dejavu-memory",
         "defaultPrompt": [
           "Remember this decision and why it matters",
           "What do I already know about this project?"

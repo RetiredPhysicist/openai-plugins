@@ -64,7 +64,7 @@ Call `get_sub_domains` before a vertical query. A general search over a domain-s
 
 ## dejavu-memory
 
-The plugin ships no MCP server. The memory graph is an MCP App served by your own DejaVu worker. Add that worker under the name `dejavu`:
+The plugin ships no MCP server. You use it through the plugin surface; the MCP connection is configuration, not an end-user API. The memory graph is an MCP App served by your own DejaVu worker. Add that worker under the name `dejavu`:
 
 ```toml
 [mcp_servers.dejavu]
@@ -74,7 +74,7 @@ http_headers = { CF-Access-Client-Id = "your-client-id", CF-Access-Client-Secret
 
 Keep the name `dejavu`. The header pair is only for a deployment behind Cloudflare Access. A server without Access needs `url` alone.
 
-Open **DejaVu Memory** from the sidebar. Search highlights matching nodes. Click a node to read it. Double-click to expand its children. Drag to rearrange. Scroll to zoom. Model tools (`read_memory`, `search_memory`, `create_memory`, `update_memory`, `delete_memory`) stay on the server; this plugin does not replace them.
+Open **DejaVu Memory** from the sidebar. Search highlights matching nodes. Click a node to read it. Double-click to expand its children. Drag to rearrange. Scroll to zoom. The plugin provides the graph and the model-facing experience; `read_memory`, `search_memory`, `create_memory`, `update_memory`, and `delete_memory` stay on the server behind it.
 
 <p align="center">
   <img src="./plugins/dejavu-memory/assets/dejavu-memory-graph.webp" width="100%" alt="DejaVu Memory in Codex: a small sample memory tree as an interactive graph, with type colours and priority-sized nodes">
@@ -84,7 +84,7 @@ Open **DejaVu Memory** from the sidebar. Search highlights matching nodes. Click
   <img src="./plugins/dejavu-memory/assets/dejavu-memory-inspector.webp" width="100%" alt="Selecting a sample node opens the inspector: the memory URI, its type and priority, and the body text, with its subtree highlighted">
 </p>
 
-Server setup: [DejaVu](https://github.com/RealAlexandreAI/DejaVu). The same server, tool-only, is also packaged for [Pi](https://github.com/RetiredPhysicist/pi-plugins/tree/main/packages/pi-dejavu-memory) and [dsh](https://github.com/RetiredPhysicist/dsh-plugins/tree/main/packages/dsh-dejavu-memory).
+Server setup follows the DejaVu deployment guide. The graph is an OpenAI/Codex plugin surface. The same server, without the graph, is packaged for [Pi](https://github.com/RetiredPhysicist/pi-plugins/tree/main/packages/pi-dejavu-memory) and [dsh](https://github.com/RetiredPhysicist/dsh-plugins/tree/main/packages/dsh-dejavu-memory).
 
 The config step is manual for three reasons:
 
@@ -158,7 +158,7 @@ From `plugins/things`: `npm install`, `npm run build`, `npm test`.
 
 ## Layout
 
-Each plugin is a v1.0.0 package: `plugin.json`, skills under `skills/`, `mcp.json` when the plugin bundles a server, and OpenAI metadata under `extensions.com.openai`. The marketplace catalog is `.agents/plugins/marketplace.json` (name `retiredphysicist`).
+Each plugin declares its own version in `plugin.json`: a plugin may include skills under `skills/`, `mcp.json` when it bundles a server, and OpenAI metadata under `extensions.com.openai`. The marketplace catalog is `.agents/plugins/marketplace.json` (name `retiredphysicist`).
 
 ```text
 openai-plugins/

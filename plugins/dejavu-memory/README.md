@@ -15,7 +15,7 @@ and subtree expansion. Data stays on your own DejaVu server, reached through its
   <img src="./assets/dejavu-memory-inspector.webp" width="100%" alt="Selecting a node opens the inspector: the memory URI, its type and priority, and the body text, with its subtree highlighted">
 </p>
 
-Set your server up first: [DejaVu](https://github.com/RealAlexandreAI/DejaVu).
+Set up your DejaVu server first.
 
 ## Install
 
@@ -24,8 +24,8 @@ codex plugin marketplace add RetiredPhysicist/openai-plugins
 codex plugin add dejavu-memory@retiredphysicist
 ```
 
-The plugin ships no MCP server of its own — the memory graph is a server-side MCP App served by your
-DejaVu worker. Point Codex at your deployment by adding it as `dejavu`:
+The plugin ships no MCP server of its own — the memory graph is an MCP App served by your
+DejaVu worker. Point Codex at your deployment by adding it as `dejavu`. This is setup for the plugin; you do not call the MCP endpoint directly:
 
 ```toml
 [mcp_servers.dejavu]
@@ -52,13 +52,12 @@ clients. That is the path to remove this step entirely.
 Open **DejaVu Memory** from the sidebar for an interactive graph of the memory tree: search highlights
 matching nodes, click a node to read it, double-click to expand its children, drag to rearrange, and
 scroll to zoom. The model-facing tools (`read_memory`, `search_memory`, and the rest) are unchanged —
-the OpenAI plugin grows on top of the plain MCP server and does not replace it.
+the OpenAI plugin is the presentation layer on top of the DejaVu MCP server.
 
 ## Related
 
-- [DejaVu](https://github.com/RealAlexandreAI/DejaVu) — the Cloudflare MCP memory server this plugin talks to
-- [pi-dejavu-memory](https://github.com/RetiredPhysicist/pi-plugins/tree/main/packages/pi-dejavu-memory) — same memory server, tool-only, for Pi
-- [dsh-dejavu-memory](https://github.com/RetiredPhysicist/dsh-plugins/tree/main/packages/dsh-dejavu-memory) — same memory server, tool-only, for dsh
+- [pi-dejavu-memory](https://github.com/RetiredPhysicist/pi-plugins/tree/main/packages/pi-dejavu-memory) — same memory server, tools only, no graph
+- [dsh-dejavu-memory](https://github.com/RetiredPhysicist/dsh-plugins/tree/main/packages/dsh-dejavu-memory) — same memory server, tools only, no graph
 
 ## License
 

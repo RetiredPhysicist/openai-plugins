@@ -64,7 +64,7 @@ http_headers = { Authorization = "Bearer as_sk_..." }
 
 ## dejavu-memory
 
-这个插件不自带 MCP 服务。记忆图是你自己的 DejaVu worker 提供的 MCP App。把该 worker 加到名为 `dejavu` 的配置下：
+这个插件不自带 MCP 服务。你通过插件界面使用它；MCP 连接只是配置，不是面向用户的 API。记忆图是你自己的 DejaVu worker 提供的 MCP App。把该 worker 加到名为 `dejavu` 的配置下：
 
 ```toml
 [mcp_servers.dejavu]
@@ -74,7 +74,7 @@ http_headers = { CF-Access-Client-Id = "your-client-id", CF-Access-Client-Secret
 
 名字保持 `dejavu`。这对 header 只给挂在 Cloudflare Access 后面的部署用。没有 Access 的服务只填 `url`。
 
-从侧边栏打开 **DejaVu Memory**。搜索会高亮匹配节点。点击节点读内容。双击展开子节点。拖拽重排。滚轮缩放。模型侧工具（`read_memory`、`search_memory`、`create_memory`、`update_memory`、`delete_memory`）仍在服务端；这个插件不替换它们。
+从侧边栏打开 **DejaVu Memory**。搜索会高亮匹配节点。点击节点读内容。双击展开子节点。拖拽重排。滚轮缩放。插件提供图和模型侧体验；`read_memory`、`search_memory`、`create_memory`、`update_memory`、`delete_memory` 仍在服务端，作为底层工具。
 
 <p align="center">
   <img src="./plugins/dejavu-memory/assets/dejavu-memory-graph.webp" width="100%" alt="Codex 里的 DejaVu Memory：一棵小型示例记忆树的交互图，节点按类型着色、按优先级定大小">
@@ -84,7 +84,7 @@ http_headers = { CF-Access-Client-Id = "your-client-id", CF-Access-Client-Secret
   <img src="./plugins/dejavu-memory/assets/dejavu-memory-inspector.webp" width="100%" alt="选中一个示例节点后打开检视器：记忆 URI、类型、优先级和正文，并高亮其子树">
 </p>
 
-服务端搭建：[DejaVu](https://github.com/RealAlexandreAI/DejaVu)。同一服务的纯工具版本也打包给了 [Pi](https://github.com/RetiredPhysicist/pi-plugins/tree/main/packages/pi-dejavu-memory) 和 [dsh](https://github.com/RetiredPhysicist/dsh-plugins/tree/main/packages/dsh-dejavu-memory)。
+服务端搭建请按 DejaVu 的部署说明操作。图界面属于 OpenAI/Codex 插件；同一服务不带图的版本打包给了 [Pi](https://github.com/RetiredPhysicist/pi-plugins/tree/main/packages/pi-dejavu-memory) 和 [dsh](https://github.com/RetiredPhysicist/dsh-plugins/tree/main/packages/dsh-dejavu-memory)。
 
 这步配置必须手动，原因有三条：
 
@@ -158,7 +158,7 @@ codex plugin add things@retiredphysicist
 
 ## 目录
 
-每个插件是一个 v1.0.0 包：`plugin.json`，`skills/` 下的 skill，插件自带服务时有 `mcp.json`，OpenAI 元数据在 `extensions.com.openai`。市场目录是 `.agents/plugins/marketplace.json`（名称 `retiredphysicist`）。
+每个插件在 `plugin.json` 里声明自己的版本；可以带 `skills/` 下的 skill，插件自带服务时有 `mcp.json`，OpenAI 元数据在 `extensions.com.openai`。市场目录是 `.agents/plugins/marketplace.json`（名称 `retiredphysicist`）。
 
 ```text
 openai-plugins/
