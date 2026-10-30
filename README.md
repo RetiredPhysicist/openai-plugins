@@ -190,6 +190,20 @@ openai-plugins/
 
 dejavu-memory has no `mcp.json`. The server URL is the config block above, not a file in this repo.
 
+## Release
+
+**Preferred:** [Changesets](https://github.com/changesets/changesets) for the packages that have a `package.json` (`markwire`, `things`). From the repo root (after `npm ci --workspaces=false`):
+
+```bash
+npx changeset          # pick packages + bump type; commit .changeset/*.md in your PR
+```
+
+On merge to `main`, `.github/workflows/release.yml` opens a **Version Packages** PR (also syncs `plugin.json` when present). Merge that PR. Those packages are `private` build tooling — nothing is published to npm; distribution stays the Codex / ChatGPT marketplace. The root `package.json` is private and only exists so Changesets can discover those workspaces; day-to-day work is still `cd plugins/<pkg> && npm ci`.
+
+`all-search` and `dejavu-memory` have no `package.json` yet; bump their `plugin.json` version by hand.
+
+There is no tag → npm `publish.yml` in this repository.
+
 ## License
 
 MIT. Each `plugin.json` sets `"license": "MIT"`. This repository has no separate LICENSE file.
