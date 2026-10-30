@@ -190,6 +190,20 @@ openai-plugins/
 
 dejavu-memory 没有 `mcp.json`。服务 URL 是上面那段配置，不是这个仓库里的文件。
 
+## 发布
+
+**推荐：** 对有 `package.json` 的包（`markwire`、`things`）用 [Changesets](https://github.com/changesets/changesets)。在仓库根目录（先 `npm ci --workspaces=false`）：
+
+```bash
+npx changeset          # 选包与 bump 类型；把 .changeset/*.md 随 PR 提交
+```
+
+合并进 `main` 后，`.github/workflows/release.yml` 会开 **Version Packages** PR（有 `plugin.json` 时一并同步版本）。再合并该 PR。这些包是 `private` 构建工具，**不会**发到 npm；分发仍走 Codex / ChatGPT 插件市场。根目录 `package.json` 为 private，只为让 Changesets 发现这些 workspace；日常仍是 `cd plugins/<pkg> && npm ci`。
+
+`all-search` 和 `dejavu-memory` 尚无 `package.json`，请手改各自的 `plugin.json` 版本。
+
+本仓库没有 tag → npm 的 `publish.yml`。
+
 ## 许可证
 
 MIT。每个 `plugin.json` 的 `"license"` 都是 `"MIT"`。本仓库没有单独的 LICENSE 文件。

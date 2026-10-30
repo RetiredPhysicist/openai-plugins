@@ -1,0 +1,21 @@
+{
+  "name": "openai-plugins",
+  "private": true,
+  "description": "Private workspace root for Changesets. Packages with package.json live under plugins/.",
+  "workspaces": [
+    "plugins/markwire",
+    "plugins/things"
+  ],
+  "scripts": {
+    "changeset": "changeset",
+    "version-packages": "bash script/changeset-version.sh",
+    "release": "bash script/changeset-publish.sh"
+  },
+  "devDependencies": {
+    "@changesets/changelog-github": "^1.0.1",
+    "@changesets/cli": "^3.0.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
