@@ -6,11 +6,15 @@ for committed bundles).
 
 ## Release / version a package
 
-Preferred for packages with `package.json`: Changesets from the repo root
-(`npm ci --workspaces=false`, then `npx changeset`). Merging to `main` lets
-`.github/workflows/release.yml` open a Version Packages PR (also syncs
-`plugin.json`). Those packages stay private — no npm publish. Distribution is
-the Codex / ChatGPT marketplace.
+For packages with `package.json`, `script/version-packages.mjs` writes the
+same version into `package.json`, `plugin.json`, and the package lock:
+
+```bash
+node script/version-packages.mjs markwire 1.0.1   # or things
+```
+
+Commit that and push. Those packages stay private — no npm publish.
+Distribution is the Codex / ChatGPT marketplace.
 
 `all-search` / `dejavu-memory`: bump `plugin.json` by hand until they gain a
 package.json.

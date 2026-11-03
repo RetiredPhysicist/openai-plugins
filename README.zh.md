@@ -192,13 +192,13 @@ dejavu-memory 没有 `mcp.json`。服务 URL 是上面那段配置，不是这�
 
 ## 发布
 
-**推荐：** 对有 `package.json` 的包（`markwire`、`things`）用 [Changesets](https://github.com/changesets/changesets)。在仓库根目录（先 `npm ci --workspaces=false`）：
+对有 `package.json` 的包（`markwire`、`things`），`script/version-packages.mjs` 会把同一个版本写进 `package.json`、`plugin.json` 和包 lock：
 
 ```bash
-npx changeset          # 选包与 bump 类型；把 .changeset/*.md 随 PR 提交
+node script/version-packages.mjs markwire 1.0.1   # 或 things
 ```
 
-合并进 `main` 后，`.github/workflows/release.yml` 会开 **Version Packages** PR（有 `plugin.json` 时一并同步版本）。再合并该 PR。这些包是 `private` 构建工具，**不会**发到 npm；分发仍走 Codex / ChatGPT 插件市场。根目录 `package.json` 为 private，只为让 Changesets 发现这些 workspace；日常仍是 `cd plugins/<pkg> && npm ci`。
+提交并推送即可。这些包是 private 构建工具，**不会**发到 npm；分发仍走 Codex / ChatGPT 插件市场。
 
 `all-search` 和 `dejavu-memory` 尚无 `package.json`，请手改各自的 `plugin.json` 版本。
 

@@ -192,13 +192,13 @@ dejavu-memory has no `mcp.json`. The server URL is the config block above, not a
 
 ## Release
 
-**Preferred:** [Changesets](https://github.com/changesets/changesets) for the packages that have a `package.json` (`markwire`, `things`). From the repo root (after `npm ci --workspaces=false`):
+For the packages that have a `package.json` (`markwire`, `things`), `script/version-packages.mjs` writes the same version into `package.json`, `plugin.json`, and the package lock:
 
 ```bash
-npx changeset          # pick packages + bump type; commit .changeset/*.md in your PR
+node script/version-packages.mjs markwire 1.0.1   # or things
 ```
 
-On merge to `main`, `.github/workflows/release.yml` opens a **Version Packages** PR (also syncs `plugin.json` when present). Merge that PR. Those packages are `private` build tooling — nothing is published to npm; distribution stays the Codex / ChatGPT marketplace. The root `package.json` is private and only exists so Changesets can discover those workspaces; day-to-day work is still `cd plugins/<pkg> && npm ci`.
+Commit that and push. Those packages are `private` build tooling — nothing is published to npm; distribution stays the Codex / ChatGPT marketplace.
 
 `all-search` and `dejavu-memory` have no `package.json` yet; bump their `plugin.json` version by hand.
 
