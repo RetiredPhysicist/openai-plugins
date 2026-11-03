@@ -68,10 +68,7 @@ jobs:
 
       - name: Install
         working-directory: plugins/${{ matrix.plugin }}
-        # The root package.json declares workspaces; without --workspaces=false,
-        # npm ci hoists to the repo root and the committed bundle check rebuilds
-        # against a different module graph.
-        run: npm ci --workspaces=false --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Test
         working-directory: plugins/${{ matrix.plugin }}
