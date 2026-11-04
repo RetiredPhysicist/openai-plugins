@@ -9,7 +9,7 @@ DejaVu stores memory as a tree of versioned nodes addressed by URI (`dejavu://ag
 
 ## Recall
 
-Start with `search_memory` rather than browsing. Pass `mode="hybrid"` when keywords alone may miss the topic, since that also merges semantic hits.
+Start with `search_memory` rather than browsing. The default `mode="auto"` answers from keyword hits when they fill the request and only then adds semantic hits; pass `mode="fts"` when you want one cheap keyword query with no embedding call. Add `prefix` to stay inside one project subtree (`agent/work` covers `dejavu://agent/work` and below).
 
 When the user asks what you already know about a subject, search first and answer from the hits. Load `system://boot` only when the user asks for a full session briefing or you need the whole memory map; it is large.
 
@@ -22,6 +22,10 @@ Before creating a node:
 1. Search for an existing node on the topic.
 2. If one exists, read it and update instead of creating a second node. Prefer `append` for new detail and `content` for a rewrite.
 3. If none exists, `read_memory` on the intended parent, then `create_memory`.
+
+For a second entry point to the same memory use `create_memory` with `alias_of=<target_uri>`; it takes no content. Rename a path with `update_memory(new_name=…)` on its own. Both replace the former `add_alias` and `rename_memory` tools.
+
+When a write may be retried, pass `idempotency_key` so the second call returns the first memory instead of a duplicate. Pass `embed: false` for transcripts and other bulk records whose cost should stay on keyword search.
 
 Set `relation` on updates so the history stays legible:
 
@@ -41,3 +45,5 @@ Never store credentials, tokens, or other secrets.
 ## Prune
 
 When the user asks to forget something, `read_memory` first. `delete_memory` cuts a path and refuses while children exist, so delete or reparent the children first, then confirm what was removed.
+
+`audit` lists recent changes; `audit(action="rollback", audit_id=…)` undoes one after a bad edit.
