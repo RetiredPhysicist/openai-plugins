@@ -2,7 +2,8 @@
 
 [Agent Plugins](https://agent-plugins.org/specification) for ChatGPT and Codex. [中文](./README.zh.md)
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](./plugins/all-search/plugin.json)
+[![CI](https://github.com/RetiredPhysicist/openai-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/RetiredPhysicist/openai-plugins/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](#license)
 
 Four plugins, published by [RetiredPhysicist](https://github.com/RetiredPhysicist). Two talk to a remote MCP endpoint. Two run a local stdio server on the machine where Codex is open. None of them ship a hosted backend of their own.
 

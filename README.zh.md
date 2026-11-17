@@ -2,7 +2,8 @@
 
 面向 ChatGPT 与 Codex 的 [Agent Plugins](https://agent-plugins.org/specification)。[English](./README.md)
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](./plugins/all-search/plugin.json)
+[![CI](https://github.com/RetiredPhysicist/openai-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/RetiredPhysicist/openai-plugins/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](#%E8%AE%B8%E5%8F%AF%E8%AF%81)
 
 四个插件，发布者 [RetiredPhysicist](https://github.com/RetiredPhysicist)。其中两个连远程 MCP 端点，两个在 Codex 所在机器上跑本地 stdio 服务。这个仓库不自带托管后端。
 
